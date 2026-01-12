@@ -1103,8 +1103,8 @@ if bouton_calcul:
             end_date = df_conso.index.max().date().isoformat()
         else:
             # Par défaut, année 2024
-            start_date = "2024-01-01"
-            end_date = "2024-12-31"
+            start_date = "2023-01-01"
+            end_date = "2023-12-31"
 
         lat = st.session_state.selected_point["lat"]
         lon = st.session_state.selected_point["lon"]
@@ -1354,6 +1354,8 @@ if bouton_calcul:
 
                     fig_pv_snow = plot_pv_with_snow(df_snow)
                     st.plotly_chart(fig_pv_snow, width='stretch')
+
+
 
 
                 # with st.expander("Aperçu des données PV (premières lignes)"):
@@ -1837,6 +1839,76 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         fig_consumption_heatmap = build_consumption_heatmap_figure(hours_mean_df)
         st.pyplot(fig_consumption_heatmap)
     
+
+    with st.expander("Aperçus globaux de la prod et conso journalière et mensuels"):
+        fig_sol_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df)
+        st.pyplot(fig_sol_daymonth, width='stretch')
+
+        fig_conso_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="Consumption [kW]", title_start="Consumption", color_day = "#9A031E")
+        st.pyplot(fig_conso_daymonth, width='stretch')
+        
+        fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile)
+        st.pyplot(fig_consumption_week_analysis, width='stretch')
+        
+
+        col1, col2 = st.columns([0.9, 1.1], gap="large")
+
+        with col1:
+            st.write("Are the consumption and production well aligned?  if not, is it possible to move the consumption during the production time to improve the direct self-consumption?")
+
+        with col2:
+            fig_polar_consumption = build_polar_consumption_profile(df_pow_profile) 
+            st.pyplot(fig_polar_consumption)
+
+
+        # year_used = df_pow_profile.index.year[0]
+
+        # col1, col2 = st.columns(2)
+
+        # with col1:
+        #     st.write("Are the consumption and production well aligned?  if not, is it possible to move the consumption during the production time to improve the direct self-consumption?")
+
+        #     period_for_polar_user = st.radio(
+        #         "Set period",
+        #         ["Winter", "Summer", "All data"],
+        #         captions=[
+        #             "January-February",
+        #             "June to August",
+        #             "All available range.",
+        #         ] )
+        #     #st.write("You selected:", period_for_polar_user)
+
+        # with col2:
+        #     if period_for_polar_user == "All data":
+        #         fig_polar_consumption = build_polar_consumption_profile(df_pow_profile)
+        #         fig_polar_prices = build_polar_prices_profile(df_pow_profile)
+        #         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile)
+
+
+        #     elif  period_for_polar_user == "Winter":
+        #         #for tests TODO:
+        #         start_date = datetime.date(year_used, 1, 1)
+        #         end_date = datetime.date(year_used, 2, 28) 
+        #         #df_selection = df_pow_profile[]
+        #         fig_polar_consumption = build_polar_consumption_profile(df_pow_profile, start_date, end_date )
+        #         fig_polar_prices = build_polar_prices_profile(df_pow_profile, start_date, end_date )
+        #         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile, start_date=start_date , end_date=end_date )
+
+        #     else  :
+        #         #Summer
+        #         #for tests TODO:
+        #         start_date = datetime.date(year_used, 6, 1)
+        #         end_date = datetime.date(year_used, 8, 31) 
+        #         fig_polar_consumption = build_polar_consumption_profile(df_pow_profile, start_date, end_date )
+        #         fig_polar_prices = build_polar_prices_profile(df_pow_profile, start_date, end_date )
+        #         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile, start_date=start_date , end_date=end_date )
+
+        #     st.pyplot(fig_polar_consumption, use_container_width=False)
+        
+        
+        # st.write("the consumption is generally varying through the week and through the year. The electrical heating (direct or with heat pump) is generally dominant in winter.")
+        # st.pyplot(fig_consumption_week_analysis)
+
 
 
     with st.expander("Aperçu du fonctionnement de la batterie"):

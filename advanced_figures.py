@@ -530,8 +530,9 @@ def build_bat_inout_figure(day_kwh_df, month_kwh_df):
     plt.xticks(loc,labels=labels_month,rotation=35)
 
     #addition of a watermark on the figure
-    im = Image.open(WATERMARK_PICTURE)   
-    fig_bat_inout.figimage(im, 0.05*FIGSIZE_WIDTH*150, 0.1*FIGSIZE_HEIGHT*150, zorder=3, alpha=.2)
+    if I_WANT_WATERMARK_ON_FIGURE:
+        im = Image.open(WATERMARK_PICTURE)   
+        fig_bat_inout.figimage(im, 0.05*FIGSIZE_WIDTH*150, 0.1*FIGSIZE_HEIGHT*150, zorder=3, alpha=.2)
 
 
     return fig_bat_inout
@@ -629,6 +630,62 @@ def build_power_profile(quarters_mean_df, label_of_channel):
 
     return fig_pow_by_min_of_day
 
+
+def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df, 
+                                      column_name ="Solar power scaled",
+                                      title_start="PV production",
+                                      color_day = SOLAR_COLOR):
+
+    all_channels_labels = list(day_kwh_df.columns)
+    chanel_number_for_solar = [i for i, elem in enumerate(all_channels_labels) if column_name in elem]
+    #day_kwh_df = total_datalog_df.resample("1d").sum() / 60
+    #month_kwh_df = total_datalog_df.resample("1M").sum() / 60
+    
+    
+    fig_solar, axes_solar = plt.subplots(nrows=2, ncols=1, figsize=(FIGSIZE_WIDTH, FIGSIZE_HEIGHT))
+    
+    day_kwh_df[day_kwh_df.columns[chanel_number_for_solar]].plot(ax=axes_solar[0],
+              kind='line',
+              marker='o',
+              color=color_day)
+    
+    month_kwh_df[month_kwh_df.columns[chanel_number_for_solar[0]]].plot.bar(ax=axes_solar[1],
+                          use_index=True)
+    
+    # if FRANCAIS_LANGUAGE == True:
+    # else:
+    axes_solar[0].set_ylabel("Energy [kWh/day]", fontsize=12)
+    axes_solar[0].set_title(title_start+" per day and per month", fontsize=12, weight="bold")
+    axes_solar[0].legend(["Day " + title_start])
+    axes_solar[0].grid(True)
+    
+    
+    axes_solar[1].set_ylabel("Energy [kWh/month]", fontsize=12)
+    #axes_solar[1].set_title("PV production per month", fontsize=12, weight="bold")
+    axes_solar[1].legend(["Month " + title_start])
+    axes_solar[1].grid(True)
+    
+    #replace labels with the month name:
+    loc, label= plt.xticks()
+    #plt.xticks(loc,labels=list(month_kwh_df.index.month_name()), rotation=35, ha = 'right' )
+    labels_month=list(month_kwh_df.index.month_name())
+    labels_year=list(month_kwh_df.index.year)
+    
+    for k,elem in enumerate(labels_month):
+        if elem=='January':
+            labels_month[k]=str(labels_year[k]) + ' January'
+    
+    loc=np.arange(len(labels_month))
+    plt.xticks(loc,labels=labels_month,rotation=35)
+
+    if I_WANT_WATERMARK_ON_FIGURE:
+        im = Image.open(WATERMARK_PICTURE)   
+        fig_solar.figimage(im, 0.05*FIGSIZE_WIDTH*150, 0.1*FIGSIZE_HEIGHT*150, zorder=3, alpha=.2)
+
+    #fig_solar.figimage(im, 10, 10, zorder=3, alpha=.2)
+    #fig_solar.savefig("FigureExport/solar_daily_monthly_production_figure.png")
+
+    return fig_solar
 
 
 
@@ -978,8 +1035,11 @@ def build_polar_consumption_profile(total_datalog_df, start_date = datetime.date
         axes_pow_by_min_of_day.set_title(f"Mean consumption vs solar profiles  \n in kW ", fontsize=12, weight='bold')
         axes_pow_by_min_of_day.grid(True)
         
+        if I_WANT_WATERMARK_ON_FIGURE:
+            im = Image.open(WATERMARK_PICTURE)   
+            fig_pow_by_min_of_day.figimage(im, 0.05*FIGSIZE_WIDTH*150, 0.1*FIGSIZE_HEIGHT*150, zorder=3, alpha=.2)
+
     
-  
 
     return fig_pow_by_min_of_day
 
