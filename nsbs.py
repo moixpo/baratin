@@ -760,11 +760,12 @@ if st.session_state.hide_info == False:
 
         Puis ci-dessous:
 
-        2) Avoir un fichier csv de votre consommation, de préférence une année entière pour avoir toutes les saisons. 
+        2) Cliquer sur votre position sur la carte, cela est nécessaires pour obtenir l'estimation solaire.
+        3) Avoir un fichier csv de votre consommation, de préférence une année entière pour avoir toutes les saisons. 
         Si le fichier ne peut pas être lu, c'est que le format n'est pas encore connu. Envoyez un email à info@autoconsommation.ch avec le fichier et le nom de votre distributeur et j'adapterai pour rendre compatible.
-        3) Cliquer sur votre position sur la carte, cela est nécessaires pour obtenir l'estimation solaire.
-        4) Lancer le collecte des données météorologiques.
-        5) Lancer les calculs d'autoconsommation et d'autonomie --> regarder les résultats
+        4) Lancer la collecte des données météorologiques et si il y a des données de consommation, cela lancer aussi les calculs d'autoconsommation et d'autonomie 
+        
+        --> regarder les résultats
 
 
 
@@ -899,10 +900,60 @@ st.sidebar.write("Version 0.3, Moix P-O, 2026, ✌️")
 
 
 # -----------------------------------------------------------
+# Carte Folium pour choisir un point
+# -----------------------------------------------------------
+st.markdown("---")
+st.markdown("### 2 - Choisissez l'emplacement sur la carte")
+st.write("Et vérifiez la puissance PV prévue, l'orientation et l'angle du toit dans le menu ci-contre")
+default_location = [46.23647, 7.36697]  # Tourbillon 
+center = default_location
+if st.session_state.selected_point is not None:
+    center = [st.session_state.selected_point["lat"], st.session_state.selected_point["lon"]]
+
+m = folium.Map(location=center, zoom_start=14 if st.session_state.selected_point else 8, control_scale=True, tiles='CartoDB Voyager')
+
+#m = folium.Map(location=default_location, zoom_start=8, control_scale=True, tiles='CartoDB Voyager') #"CartoDB Positron"
+
+
+# Marqueur actuel si déjà sélectionné
+if st.session_state.selected_point is not None:
+    folium.Marker(
+        location=[st.session_state.selected_point["lat"], st.session_state.selected_point["lon"]],
+        popup="Point sélectionné",
+        tooltip="Point sélectionné",
+    ).add_to(m)
+
+map_state = st_folium(m, height=450, width=None, key="map_select")
+
+#st.write("DEBUG: reached map section")
+
+
+# Gestion du clic
+if map_state and map_state.get("last_clicked"):
+    lat = float(map_state["last_clicked"]["lat"])
+    lon = float(map_state["last_clicked"]["lng"])
+
+    new_point = {"lat": lat, "lon": lon}
+    if st.session_state.selected_point != new_point:
+        st.session_state.selected_point = new_point
+        st.rerun() #TODO ne pas faire de rerun ici, stremlit le fait automatiquement
+
+
+
+#écrire dessous la carte les coordonnées du point sélectionné
+if st.session_state.selected_point is None:
+    st.write("Point sélectionné : _aucun_")
+else:
+    st.write(
+        f"Point sélectionné : **{st.session_state.selected_point['lat']:.5f}, "
+        f"{st.session_state.selected_point['lon']:.5f}**"
+        )
+
+# -----------------------------------------------------------
 # CSV du smartmeter
 
 st.markdown("---")
-st.subheader("2 - Données de consommation (smart-meter)")
+st.subheader("3 - Données de consommation (smart-meter)")
 
 
 col_left, col_right = st.columns([0.5, 1.5], gap="large")
@@ -910,7 +961,7 @@ col_left, col_right = st.columns([0.5, 1.5], gap="large")
 with col_left:
 
     uploaded_file = st.file_uploader(
-        "Importer un fichier CSV du compteur intelligent",
+        "Importer un fichier CSV du compteur intelligent, de préférence avec une année complète de données",
         type=["csv"],
         key="smartmeter_uploader",  
         help=(
@@ -972,7 +1023,7 @@ with col_right:
             title="Consommation mesurée (telle que fournie)",
         )
         st.plotly_chart(fig_conso, width='stretch')
-        st.success("Veuillez véfifier que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
+        st.success("Veuillez que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
 
     else:
         st.info(
@@ -1002,56 +1053,6 @@ if st.session_state.df_conso_plot is not None:
     #col3.metric("Bill", f"{bill_without_solar :.0f}" + "CHF")
 
 
-
-# -----------------------------------------------------------
-# Carte Folium pour choisir un point
-# -----------------------------------------------------------
-st.markdown("---")
-st.markdown("### 3 - Choisissez l'emplacement sur la carte")
-st.write("Et vérifiez la puissance PV prévue, l'orientation et l'angle du toit dans ci-contre")
-default_location = [46.23647, 7.36697]  # Tourbillon 
-center = default_location
-if st.session_state.selected_point is not None:
-    center = [st.session_state.selected_point["lat"], st.session_state.selected_point["lon"]]
-
-m = folium.Map(location=center, zoom_start=14 if st.session_state.selected_point else 8, control_scale=True, tiles='CartoDB Voyager')
-
-#m = folium.Map(location=default_location, zoom_start=8, control_scale=True, tiles='CartoDB Voyager') #"CartoDB Positron"
-
-
-# Marqueur actuel si déjà sélectionné
-if st.session_state.selected_point is not None:
-    folium.Marker(
-        location=[st.session_state.selected_point["lat"], st.session_state.selected_point["lon"]],
-        popup="Point sélectionné",
-        tooltip="Point sélectionné",
-    ).add_to(m)
-
-map_state = st_folium(m, height=450, width=None, key="map_select")
-
-#st.write("DEBUG: reached map section")
-
-
-# Gestion du clic
-if map_state and map_state.get("last_clicked"):
-    lat = float(map_state["last_clicked"]["lat"])
-    lon = float(map_state["last_clicked"]["lng"])
-
-    new_point = {"lat": lat, "lon": lon}
-    if st.session_state.selected_point != new_point:
-        st.session_state.selected_point = new_point
-        #st.rerun() ne pas faire de rerun ici, stremlit le fait automatiquement
-
-
-
-#écrire dessous la carte les coordonnées du point sélectionné
-if st.session_state.selected_point is None:
-    st.write("Point sélectionné : _aucun_")
-else:
-    st.write(
-        f"Point sélectionné : **{st.session_state.selected_point['lat']:.5f}, "
-        f"{st.session_state.selected_point['lon']:.5f}**"
-        )
 
 # -----------------------------------------------------------
 # Zone centrale : graphiques conso + bouton meteo
@@ -1140,7 +1141,7 @@ if bouton_calcul:
                 # production = kWc * kWh/m² * PR 
 
                 # Hypothèse simple de performance ratio
-                PR = 0.87 #TODO: faire évoluer avec un deuxième couche de modèle meteo, avec le ratio kWh/kWc des cartes moyennes d'ensoleillement
+                PR = 0.85 #TODO: faire évoluer avec un deuxième couche de modèle meteo, par exemple avec le ratio kWh/kWc des cartes moyennes d'ensoleillement
 
 
                 df_gti_15["production_pv_kwh"] = pv_kw * df_gti_15["gti_kwh_m2_15min"] * PR 

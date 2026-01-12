@@ -11,6 +11,24 @@
 - Chargement des données CSV de smart-meter
 - Modèle de la batterie.
 
+## Calculs réalisés
+
+    Open-Meteo  →  DNI / DHI / GHI
+                        ↓
+    Position solaire (azimut, élévation)
+                        ↓
+    Horizon PVGIS → masque DNI
+                        ↓
+    Projection géométrique (tilt + azimut toit)
+                        ↓
+    POA direct + POA diffus + albédo
+                        ↓
+    Neige (accumulation / fonte)
+                        ↓
+    Production PV réelle
+                        ↓
+    Comparaison avec smart-meter
+
 ## Lancer
 ```bash
 streamlit run nsbs.py
