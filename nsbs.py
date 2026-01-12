@@ -738,7 +738,7 @@ if "uploaded_file_name" not in st.session_state:
     st.session_state.uploaded_file_name = None
 
 
-st.title("☀️ Performances du solaire")
+st.title("☀️ Performances du solaire (beta)")
 st.subheader("Des calculs exacts sur la base des données enregistrées")
 
 if st.session_state.hide_info == False:
@@ -834,7 +834,7 @@ PV_total_cost_usr_input = st.sidebar.slider("Prix du PV   (CHF): ",
                                                value=15000.0, 
                                                step=100.0,
                                                help=(
-                                                    "Seulement de la partie panneaux \n"
+                                                    "Tout inclure, sauf les batteries qui sont entrées ci-dessous \n"
                                                     )
                                                 )
 
@@ -971,7 +971,7 @@ with col_right:
             y="consommation",
             title="Consommation mesurée (telle que fournie)",
         )
-        st.plotly_chart(fig_conso, use_container_width=True)
+        st.plotly_chart(fig_conso, width='stretch')
         st.success("Veuillez véfifier que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
 
     else:
@@ -1197,9 +1197,9 @@ if bouton_calcul:
                 df_poa["production_pv_kwh"] = pv_kw * df_poa["poa_kwh_m2_15min"] * PR
                 df_poa["production_pv_kW"] = df_poa["production_pv_kwh"] / dt_hours
 
-                #st.dataframe(df_sun_pos.head(48), use_container_width=True)
-                #st.dataframe(df_gti_15.head(48), use_container_width=True)
-                #st.dataframe(df_poa.head(48), use_container_width=True)
+                #st.dataframe(df_sun_pos.head(48), width='stretch')
+                #st.dataframe(df_gti_15.head(48), width='stretch')
+                #st.dataframe(df_poa.head(48), width='stretch')
 
                 # fig_temp_rain = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -1241,7 +1241,7 @@ if bouton_calcul:
                 #     legend_title_text=""
                 # )
 
-                # st.plotly_chart(fig_temp_rain, use_container_width=True)
+                # st.plotly_chart(fig_temp_rain, width='stretch')
 
                 #st.markdown("### Modèle d'épaisseur neige")
 
@@ -1275,7 +1275,7 @@ if bouton_calcul:
 
 
                 with st.expander("Aperçu des données météorologiques utilisées et du solaire estimé"):
-                #     st.dataframe(df_snow.head(96), use_container_width=True)
+                #     st.dataframe(df_snow.head(96), width='stretch')
                     fig_irrad = px.area(
                         df_gti_15,
                         x="time",
@@ -1284,7 +1284,7 @@ if bouton_calcul:
                                 "dni_wm2": "Direct normal"},
                         title="Irradiance directe normale et diffuse",
                     )
-                    st.plotly_chart(fig_irrad, use_container_width=True)
+                    st.plotly_chart(fig_irrad, width='stretch')
 
 
                     fig_sun_pos = px.line(
@@ -1294,7 +1294,7 @@ if bouton_calcul:
                         labels={"elevation": "hauteur du soleil"},
                         title="Position du soleil dans le ciel",
                     )
-                    st.plotly_chart(fig_sun_pos, use_container_width=True)
+                    st.plotly_chart(fig_sun_pos, width='stretch')
 
 
                     #Ensuite il faut appliquer le masque de l'horizon
@@ -1333,7 +1333,7 @@ if bouton_calcul:
                         labels={"y": "Production PV estimée (W/m2)"},
                         title="Irradiance inclinée (GTI) et irradiance total avec masque horizon et albédo",
                     )
-                    st.plotly_chart(fig_poa, use_container_width=True)
+                    st.plotly_chart(fig_poa, width='stretch')
 
 
                     #st.markdown("### 4 - Production PV estimée (pas 15 min)")
@@ -1344,19 +1344,19 @@ if bouton_calcul:
                         labels={"production_pv_kW": "Production PV estimée (kW)"},
                         title="Production PV estimée à partir de l'irradiance totale, incluant le masque",
                     )
-                    st.plotly_chart(fig_pv, use_container_width=True)
+                    st.plotly_chart(fig_pv, width='stretch')
                 #st.markdown("### Impact de la neige sur la production PV")
 
                 with st.expander("Aperçu du calcul de la neige"):
                     fig_snow = plot_snow_model(df_snow)
-                    st.plotly_chart(fig_snow, use_container_width=True)
+                    st.plotly_chart(fig_snow, width='stretch')
 
                     fig_pv_snow = plot_pv_with_snow(df_snow)
-                    st.plotly_chart(fig_pv_snow, use_container_width=True)
+                    st.plotly_chart(fig_pv_snow, width='stretch')
 
 
                 # with st.expander("Aperçu des données PV (premières lignes)"):
-                #     st.dataframe(df_snow.head(96), use_container_width=True)
+                #     st.dataframe(df_snow.head(96), width='stretch')
 
                 # Si on a de la conso, on resample aussi en 15 min et on fusionne
                 if df_conso is not None:
@@ -1401,7 +1401,7 @@ if bouton_calcul:
                     #     )
                     df_pow_profile = df_pow_profile.set_index("time")
 
-                    #st.dataframe(df_pow_profile.head(48), use_container_width=True)
+                    #st.dataframe(df_pow_profile.head(48), width='stretch')
 
                     #TODO: provisoirement ici
                     #save hours sampling for heatmap display:
@@ -1796,7 +1796,7 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     fig_merged.data[0].name = "Production solaire"
     fig_merged.data[1].name = "Consommation"
 
-    st.plotly_chart(fig_merged, use_container_width=True)
+    st.plotly_chart(fig_merged, width='stretch')
 
 
 
@@ -1912,5 +1912,5 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
 
 
     # with st.expander("Aperçu des données fusionnées (premières lignes)"):
-    #     st.dataframe(df_pow_profile.head(200), use_container_width=True)
+    #     st.dataframe(df_pow_profile.head(200), width='stretch')
 
