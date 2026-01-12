@@ -15,3 +15,8 @@
 ```bash
 streamlit run nsbs.py
 ```
+
+## Licence
+MIT
+Libre pour usage personnel, éducatif et professionnel.
+Merci de citer la source si utilisé 
