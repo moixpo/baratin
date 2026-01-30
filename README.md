@@ -8,7 +8,7 @@
 - Données météo
 - Horizon réel PVGIS
 - Modèle neige (encore à travailler,  mais quand même mieux que rien)
-- Chargement des données CSV de smart-meter
+- Chargement des données CSV de smart-meter avec le choix des unités si c'est des kWh ou des kW
 - Modèle de la batterie.
 
 ## Calculs réalisés
@@ -28,6 +28,11 @@
     Production PV réelle
                         ↓
     Comparaison avec smart-meter
+                         ↓
+    Modèle de stockage de l'excédent
+                         ↓
+    Calcul des bilans et des indicateurs
+    
 
 ## Lancer
 ```bash

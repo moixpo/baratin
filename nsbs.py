@@ -43,15 +43,23 @@ WATERMARK_PICTURE='media/LogoAlbedo_90x380.png'
 # Les fonctions
 # -----------------------------------------------------------
 
-def parser_smartmeter_csv(uploaded_file: io.BytesIO) -> pd.DataFrame:
+def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
     """
     Parse un CSV de smart-meter.
+    L'indication si c'est des kW ou des kWh doit être donnée par l'utilisateur dans power_unit.
     Hypothèses :
       - Au moins une colonne date/heure (format lisible par pandas)
       - Au moins une colonne numérique de consommation
     Retourne un DataFrame indexé par datetime avec une colonne 'consommation'.
     Lève une exception si format incompatible.
     """
+
+    if power_unit == 'kW':
+        power_conversion_factor = 1.0  # kW stays kW
+    else:  # 'kWh'
+        power_conversion_factor = 4.0 # convert kWh to kW (assuming 15-min intervals)
+
+
     try:
         df_raw = pd.read_csv(uploaded_file)
         #TODO: ici faire des cas spécifiques pour les formats des GRDs
@@ -92,17 +100,18 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO) -> pd.DataFrame:
         )
 
     # Pour l’instant, on prend la première colonne numérique
-    cons_col = numeric_cols[0]
+    cons_col = numeric_cols[0] 
     df = df[[cons_col]].rename(columns={cons_col: "consommation"})
 
     # On supprime les lignes vides / NaN
     df = df.dropna(subset=["consommation"])
 
+    #Et on applique le facteur de conversion si nécessaire:
+    df["consommation"] = df["consommation"] * power_conversion_factor
 
 
     if df.empty:
         raise ValueError("Aucune donnée de consommation exploitable.")
-
     return df
 
 
@@ -959,7 +968,9 @@ st.subheader("3 - Données de consommation (smart-meter)")
 col_left, col_right = st.columns([0.5, 1.5], gap="large")
 
 with col_left:
-
+    options_units = ["kW", "kWh"] 
+    unit_choice = st.selectbox("Unités du fichier:", options_units, index=1)
+ 
     uploaded_file = st.file_uploader(
         "Importer un fichier CSV du compteur intelligent, de préférence avec une année complète de données",
         type=["csv"],
@@ -977,7 +988,7 @@ with col_left:
         # ne re-parser que si le fichier a changé
         if st.session_state.uploaded_file_name != uploaded_file.name:
             try:
-                df_conso = parser_smartmeter_csv(uploaded_file)
+                df_conso = parser_smartmeter_csv(uploaded_file, unit_choice)
                 df_conso_plot = df_conso.reset_index().rename(columns={df_conso.index.name: "time"})
 
                 st.session_state.df_conso = df_conso
@@ -1020,7 +1031,7 @@ with col_right:
             df_conso_plot,
             x="time",
             y="consommation",
-            title="Consommation mesurée (telle que fournie)",
+            title="Consommation en kW",
         )
         st.plotly_chart(fig_conso, width='stretch')
         st.success("Veuillez que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
@@ -1771,12 +1782,14 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     - L'énergie perdue due à la limitation de revente sur le réseau est {curtailment_lost_energy_kWh :.0f} kWh
     - Le coût de l'électricité du réseau est {cost_buying_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {cost_buying_solar_storage_chf/grid_consumption_kWh_with_storage:.3f} CHF/kWh
     - La revente de l'électricité PV est {sellings_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {sellings_solar_storage_chf/grid_injection_kWh_with_storage:.3f} CHF/kWh
-    - La facture totale est {bill_with_storage:.2f} CHF avec stockage, un gain de {bill_with_solar_only - bill_with_storage :.1f} CHF grâce au stockage
-    - Le prix investi dans le solaire et les batteries de {(PV_total_cost_usr_input + batt_total_cost_usr_input) :.2f} CHF est retrouvé en {(PV_total_cost_usr_input + batt_total_cost_usr_input) / (cost_buying_no_solar_chf - bill_with_storage) :.1f} années (calcul simple sans actualisation, si une année complète de données est utilisée).
+    - La facture totale est {bill_with_storage:.2f} CHF avec stockage, un gain de {bill_with_solar_only - bill_with_storage :.1f} CHF grâce au stockage, un retour en {(batt_total_cost_usr_input) / (bill_with_solar_only - bill_with_storage) :.1f} années
+    - Le prix investi dans le solaire et les batteries de {(PV_total_cost_usr_input + batt_total_cost_usr_input) :.2f} CHF est retrouvé en {(PV_total_cost_usr_input + batt_total_cost_usr_input) / (cost_buying_no_solar_chf - bill_with_storage) :.1f} années 
     - **Gain TOTAL** avec solaire + stockage est {cost_buying_no_solar_chf - bill_with_storage :.2f} CHF """)
 
 
-    st.write(f" Note: La facture est calculée avec les kWh seulement, sans les abonnements. Ce total peut différer de la facture réelle mais les abonnements sont les mêmes dans la plupart des cas. ")
+    st.markdown(""" Notes: 
+    - La facture est calculée avec les kWh seulement, sans les abonnements. Ce total peut différer de la facture réelle mais les abonnements sont les mêmes dans la plupart des cas. 
+    - Calcul des temps de retour simple sans actualisation, si une année complète de données est utilisée.""")
 
     st.write( "\n")
     st.write( "\n")

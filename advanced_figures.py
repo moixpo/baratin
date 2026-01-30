@@ -223,7 +223,7 @@ def build_consumption_heatmap_figure(hours_mean_df):
     
     # Create the heatmap
     fig_hours_heatmap, axe_hours_heatmap = plt.subplots(nrows=1, ncols=1, figsize=(FIGSIZE_WIDTH, FIGSIZE_HEIGHT))
-    pos = axe_hours_heatmap.pcolormesh(date_only, y_axis, consumption_data.transpose(), shading='auto', cmap='jet') #cmap='RdBu' cmap='hot' viridis, cmap = 'jet'
+    pos = axe_hours_heatmap.pcolormesh(date_only, y_axis, consumption_data.transpose(), shading='auto', cmap='seismic') #cmap= 'plasma' 'RdBu' cmap='hot' viridis, cmap = 'jet' cmap="coolwarm"
       
     #pos = axe_hours_heatmap.imshow(consumption_data.transpose(), cmap='jet', aspect='auto')  
     
@@ -737,8 +737,12 @@ def build_daily_indicators_polar_fraction_figure(day_kwh_df):
     #Daily Energies Fractions:
     #############
     rate_autarky=(1-abs(day_kwh_df[chanel_label_Pin_Consumption_tot])/(day_kwh_df[channel_label_Pload_Consumption] +1e-9))*100 
+    rate_autarky = rate_autarky.clip(lower=0, upper=100).fillna(0)
+
     rate_selfconsumption=(1-abs(day_kwh_df[chanel_label_Pin_Injection])/(day_kwh_df[chanel_label_Psolar_tot]+1e-9))*100
-    
+    rate_selfconsumption = rate_selfconsumption.clip(lower=0, upper=100).fillna(0)
+
+
     e_grid_conso = day_kwh_df[chanel_label_Pin_Consumption_tot].sum()
     e_grid_inject = day_kwh_df[chanel_label_Pin_Injection].sum()
     e_load_conso = day_kwh_df[channel_label_Pload_Consumption].sum()
