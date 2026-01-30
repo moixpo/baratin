@@ -111,8 +111,8 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
             #et réassignons les colonnes numériques pour après:
             numeric_cols = df.select_dtypes(include="number").columns
 
-            #print("Après conversion, colonnes numériques détectées:", numeric_cols)
-            #print("Quantité d'erreur de conversion de la colonne:", df[col_to_convert].isna().sum())
+            print("Après conversion, colonnes numériques détectées:", numeric_cols)
+            print("Quantité d'erreur de conversion de la colonne:", df[col_to_convert].isna().sum())
             #Si il y moins de 1% de NaN, on peut considérer que la conversion a réussi et on remplace les NaN par 0
             threshold = 0.01 * len(df)
             if df[col_to_convert].isna().sum() <= threshold:
@@ -843,7 +843,7 @@ pv_kw = st.sidebar.number_input(
     "Puissance photovoltaïque prévue (kWc)",
     min_value=0.1,
     max_value=30.0, 
-    value=12.0,
+    value=11.0,
     step=0.1,
 )
 
@@ -867,7 +867,7 @@ pente_deg = st.sidebar.number_input(
 PV_total_cost_usr_input = st.sidebar.slider("Prix du PV   (CHF): ", 
                                                min_value=0.0, 
                                                max_value=50000.0, 
-                                               value=15000.0, 
+                                               value=23000.0, 
                                                step=100.0,
                                                help=(
                                                     "Tout inclure, sauf les batteries qui sont entrées ci-dessous \n"
@@ -885,7 +885,7 @@ st.sidebar.write("Taille totale de la batterie")
 battery_size_kwh_usr_input = st.sidebar.number_input("Capacité batterie  (kWh): ", 
                                                min_value=0.0, 
                                                max_value=50.0, 
-                                               value=10.0, 
+                                               value=15.0, 
                                                step=1.0,
                                                help=(
                                                     "Pour ne pas avoir de batterie, simplement mettre à 0 kWh.\n\n"
@@ -896,7 +896,7 @@ battery_size_kwh_usr_input = st.sidebar.number_input("Capacité batterie  (kWh):
 batt_total_cost_usr_input = st.sidebar.slider("Prix de la batterie  (CHF): ", 
                                                min_value=0.0, 
                                                max_value=25000.0, 
-                                               value=8000.0, 
+                                               value=9000.0, 
                                                step=100.0,
                                                help=(
                                                     "Si cela n'est pas indiqué dans l'offre, mettre une partie pour que le total corresponde.\n\n"
