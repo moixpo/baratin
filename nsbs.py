@@ -37,8 +37,7 @@ FIGSIZE_WIDTH=8
 FIGSIZE_HEIGHT=6
 WATERMARK_PICTURE='media/LogoAlbedo_90x380.png'
 example_file_path='media/House1_2025_kWh.csv'
-example_file_link ='https://raw.githubusercontent.com/moixpo/nsbs/main/media/House1_2025_kWh.csv'
-
+example_file_link ='https://raw.githubusercontent.com/moixpo/baratin/refs/heads/main/media/House1_2025_kWh.csv'
 
 #WATERMARK_PICTURE='media/watermark_logo2.png'
 
@@ -96,13 +95,35 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
 
     df = df_raw.set_index(datetime_col).sort_index()
 
+
     # Détection d'une colonne de consommation (numérique)
     numeric_cols = df.select_dtypes(include="number").columns
+    #print("colonne numérique détectée:", numeric_cols)
+
     if len(numeric_cols) == 0:
-        raise ValueError(
-            "Aucune colonne numérique trouvée pour la consommation.\n"
-            "Merci de fournir un fichier avec au moins une colonne de valeurs numériques."
-        )
+        #essayons de convertir la première colonne non numérique en numérique:
+
+        non_numeric_cols = df.select_dtypes(include="object").columns
+        #print(non_numeric_cols)
+        if len(non_numeric_cols) > 0:
+            col_to_convert = non_numeric_cols[0]
+            df[col_to_convert] = pd.to_numeric(df[col_to_convert], errors="coerce")
+            #et réassignons les colonnes numériques pour après:
+            numeric_cols = df.select_dtypes(include="number").columns
+
+            #print("Après conversion, colonnes numériques détectées:", numeric_cols)
+            #print("Quantité d'erreur de conversion de la colonne:", df[col_to_convert].isna().sum())
+            #Si il y moins de 1% de NaN, on peut considérer que la conversion a réussi et on remplace les NaN par 0
+            threshold = 0.01 * len(df)
+            if df[col_to_convert].isna().sum() <= threshold:
+                df[col_to_convert].fillna(0, inplace=True)
+            else:
+                raise ValueError(f"Conversion de la colonne '{col_to_convert}' échouée : trop de NaN ({df[col_to_convert].isna().sum()}) \nMerci de fournir un fichier avec au moins une colonne de valeurs numériques.")
+        #         raise ValueError(
+        #             "Aucune colonne numérique trouvée pour la consommation.\n"
+        #             "Merci de fournir un fichier avec au moins une colonne de valeurs numériques."
+        #         )
+
 
     # Pour l’instant, on prend la première colonne numérique
     cons_col = numeric_cols[0] 
@@ -1042,12 +1063,22 @@ with col_right:
         st.success("Veuillez vérifier que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
 
     else:
-        st.info(
-            f"""Importez un fichier CSV de smart-meter pour afficher la courbe de consommation.
-            Vous pouvez utiliser ce fichier comme exemple :
-            [Télécharger le fichier exemple]({example_file_link})"""
-        )
+        st.info(f"""
+        Importez un fichier CSV de smart-meter pour afficher la courbe de consommation.
 
+        Vous pouvez utiliser ce fichier comme exemple :
+        """
+        )
+        #[Télécharger le fichier exemple]({example_file_link})
+
+        r = requests.get(example_file_link)
+
+        st.download_button(
+            label="📥 Télécharger un fichier CSV d’exemple",
+            data=r.content,
+            file_name="example_smartmeter.csv",
+            mime="text/csv",
+        )
 
 if st.session_state.df_conso_plot is not None:
     timestep=0.25
