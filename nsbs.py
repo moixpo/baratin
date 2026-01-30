@@ -28,13 +28,18 @@ from PIL import Image
 
 #home made import:
 from solarsystem import *
-
 from advanced_figures import *
+from pathlib import Path
+
 
 #Cstes et divers
 FIGSIZE_WIDTH=8
 FIGSIZE_HEIGHT=6
 WATERMARK_PICTURE='media/LogoAlbedo_90x380.png'
+example_file_path='media/House1_2025_kWh.csv'
+example_file_link ='https://raw.githubusercontent.com/moixpo/nsbs/main/media/House1_2025_kWh.csv'
+
+
 #WATERMARK_PICTURE='media/watermark_logo2.png'
 
 
@@ -962,7 +967,7 @@ else:
 # CSV du smartmeter
 
 st.markdown("---")
-st.subheader("3 - Données de consommation (smart-meter)")
+st.subheader("3 - Données de consommation (smart-meter, au quart d'heure)")
 
 
 col_left, col_right = st.columns([0.5, 1.5], gap="large")
@@ -1034,12 +1039,13 @@ with col_right:
             title="Consommation en kW",
         )
         st.plotly_chart(fig_conso, width='stretch')
-        st.success("Veuillez que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
+        st.success("Veuillez vérifier que la courbe de consommation semble cohérente (tous les formats de fichiers des smartmeters ne sont pas validés).")
 
     else:
         st.info(
-            "Importez un fichier CSV de smart-meter pour afficher la "
-            "courbe de consommation."
+            f"""Importez un fichier CSV de smart-meter pour afficher la courbe de consommation.
+            Vous pouvez utiliser ce fichier comme exemple :
+            [Télécharger le fichier exemple]({example_file_link})"""
         )
 
 
