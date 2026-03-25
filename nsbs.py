@@ -47,7 +47,7 @@ example_file_link ='https://raw.githubusercontent.com/moixpo/baratin/refs/heads/
 # Les fonctions
 # -----------------------------------------------------------
 
-def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
+def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=0.25):
     """
     Parse un CSV de smart-meter.
     L'indication si c'est des kW ou des kWh doit être donnée par l'utilisateur dans power_unit.
@@ -60,8 +60,11 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
 
     if power_unit == 'kW':
         power_conversion_factor = 1.0  # kW stays kW
+    elif power_unit == 'Wh':  # 'Wh'
+        power_conversion_factor = 1.0 / dt_hours / 1000  # convert Wh to kW (with delta T intervals in hours)
     else:  # 'kWh'
-        power_conversion_factor = 4.0 # convert kWh to kW (assuming 15-min intervals)
+        power_conversion_factor = 1.0 / dt_hours # convert kWh to kW (with delta T intervals in hours)
+  
 
 
     try:
@@ -132,7 +135,7 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW'):
     # On supprime les lignes vides / NaN
     df = df.dropna(subset=["consommation"])
 
-    #Et on applique le facteur de conversion si nécessaire:
+    #Et on applique le facteur de conversion pour que la colonne "consommation" soit en kW (puissance instantanée) quelle que soit l'unité d'origine (kW, Wh ou kWh):
     df["consommation"] = df["consommation"] * power_conversion_factor
 
 
@@ -772,6 +775,9 @@ if "periode_txt" not in st.session_state:
 if "uploaded_file_name" not in st.session_state:
     st.session_state.uploaded_file_name = None
 
+if "period_for_polar_user" not in st.session_state:
+    st.session_state['period_for_polar_user'] = "Tout"
+
 
 st.title("☀️ Performances du solaire (beta)")
 st.subheader("Des calculs exacts sur la base des données enregistrées")
@@ -908,7 +914,7 @@ st.sidebar.markdown("---")
 st.sidebar.header("⚡💸 Paramètres prix")
 
 fixed_price_buy_usr_input = st.sidebar.slider("Prix achat électricité (ct/kWh): ", min_value=5.0, max_value=40.0, value=22.1, step=0.1) / 100  # directly in CHF/kWh
-fixed_price_sell_usr_input = st.sidebar.slider("Prix revente surplus PV (ct/kWh): ", min_value=5.0, max_value=40.0, value=8.5, step=0.1) / 100  # directly in CHF/kWh
+fixed_price_sell_usr_input = st.sidebar.slider("Prix revente surplus PV (ct/kWh): ", min_value=1.0, max_value=40.0, value=8.5, step=0.1) / 100  # directly in CHF/kWh
 
 
 # On garde en state la dernière valeur courante
@@ -994,7 +1000,7 @@ st.subheader("3 - Données de consommation (smart-meter, au quart d'heure)")
 col_left, col_right = st.columns([0.5, 1.5], gap="large")
 
 with col_left:
-    options_units = ["kW", "kWh"] 
+    options_units = ["kW", "kWh", "Wh"] 
     unit_choice = st.selectbox("Unités du fichier:", options_units, index=1)
  
     uploaded_file = st.file_uploader(
@@ -1081,7 +1087,7 @@ with col_right:
         )
 
 if st.session_state.df_conso_plot is not None:
-    timestep=0.25
+    timestep=0.25  #TODO récupérer de l'interface ou du fichier, ici on suppose 15 min = 0.25 h
     st.write("📋 Résumé des données chargées pour cette période")
     consumption_kWh = df_conso_plot["consommation"].sum() * timestep
 
@@ -1232,6 +1238,7 @@ if bouton_calcul:
                 df_gti_15["sun_masked"] = mask_direct
 
 
+
                 #calcul de l'irradiance globale sur le plan incliné, TODO: ajuster l'albédo selon les saisons et la neige
                 df_poa = add_poa_with_horizon(
                     df_gti_15,
@@ -1372,6 +1379,7 @@ if bouton_calcul:
                     st.pyplot(fig_hor_mask)
 
 
+                    #plot the heat map of the sun blocked
 
 
 
@@ -1416,8 +1424,38 @@ if bouton_calcul:
                     #on commence par merger les deux df dans df_pow_profile (comme dans l'app battery sizer)
 
                     df_conso_15 = df_conso.copy()
-                    df_conso_15 = df_conso_15.resample("15min").interpolate("time")
+                    df_conso_15 = df_conso_15.resample("15min").mean()
                     df_conso_15 = df_conso_15.reset_index().rename(columns={df_conso_15.index.name: "time"})
+
+                    # with st.expander("Vérification du resampling consommation (original vs 15 min)"):
+                    #     df_conso_plot_check = df_conso.reset_index().rename(columns={df_conso.index.name: "time"})
+                    #     fig_conso_resampling = go.Figure()
+                    #     fig_conso_resampling.add_trace(
+                    #         go.Scatter(
+                    #             x=df_conso_plot_check["time"],
+                    #             y=df_conso_plot_check["consommation"],
+                    #             mode="lines+markers",
+                    #             name="Consommation originale",
+                    #             line=dict(color="#1f77b4", width=1.5),
+                    #             marker=dict(size=4),
+                    #         )
+                    #     )
+                    #     fig_conso_resampling.add_trace(
+                    #         go.Scatter(
+                    #             x=df_conso_15["time"],
+                    #             y=df_conso_15["consommation"],
+                    #             mode="lines",
+                    #             name="Consommation resamplée 15 min",
+                    #             line=dict(color="#d62728", width=2, dash="dash"),
+                    #         )
+                    #     )
+                    #     fig_conso_resampling.update_layout(
+                    #         title="Contrôle visuel du resampling consommation",
+                    #         xaxis_title="Temps",
+                    #         yaxis_title="Consommation (kW)",
+                    #         legend_title_text="",
+                    #     )
+                    #     st.plotly_chart(fig_conso_resampling, width='stretch')
 
                     # Jointure interne sur le temps
                     df_pow_profile = pd.merge_asof(
@@ -1430,12 +1468,10 @@ if bouton_calcul:
 
                     df_pow_profile = df_pow_profile.dropna(subset=["gti_wm2", "production_pv_kwh", "production_pv_kW"])
 
-                    #renomme les colonnes comme dans l'app battery sizer pour pouvoir utiliser              
+                    #renomme les colonnes comme dans l'app battery sizer pour pouvoir utiliser les mêmes fonctions de calcul et de plot ensuite:              
                     df_pow_profile.rename(columns={"consommation": "Consumption [kW]", 
                                            "production_pv_kW_avec_neige": "Solar power scaled"},
                                             inplace=True,)
-
-
 
 
                     st.write('\n \n')
@@ -1453,6 +1489,13 @@ if bouton_calcul:
                     df_pow_profile = df_pow_profile.set_index("time")
 
                     #st.dataframe(df_pow_profile.head(48), width='stretch')
+
+                    #KPI de match solaire et de consommation:
+                    #ici le masque de soleil direct est appliqué à la consommation pour ne garder que les heures où il y a du soleil direct, 
+                    #Au final le ratio de la consommation sur les heures de soleil direct par rapport à la consommation totale est un indicateur du match du profil de consommation avec la production solaire.
+
+                    #calcul du profil de consommation qui se situe durant les heures avec un soleil direct en se basant sur sun_masked:
+                    df_pow_profile["consumption_sun_masked"] = df_pow_profile["Consumption [kW]"] * (1 - df_pow_profile["sun_masked"])
 
                     #TODO: provisoirement ici
                     #save hours sampling for heatmap display:
@@ -1733,6 +1776,13 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     day_kwh_df = hours_mean_df.resample('d').sum() 
     month_kwh_df = day_kwh_df.resample('ME').sum() 
 
+    #augmentation des df quotidien et mensuel avec les calculs des scores:
+    day_kwh_df['solar_friendliness_score'] = day_kwh_df['consumption_sun_masked'] / day_kwh_df['Consumption [kW]'] * 100
+    month_kwh_df['solar_friendliness_score'] = month_kwh_df['consumption_sun_masked'] / month_kwh_df['Consumption [kW]'] * 100
+
+    global_solar_friendliness_score = day_kwh_df['consumption_sun_masked'].sum() / day_kwh_df['Consumption [kW]'].sum() * 100
+
+
     batt_throughput_energy = -month_kwh_df['Battery discharge power only'].sum()
     if battery_size_kwh_usr_input == 0.0:
         equivalent_80percent_cycles = 0.0
@@ -1747,10 +1797,11 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     
     st.write("📋 **Reférence sans solaire ni stockage, achat au réseau simple 🔌**")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     col1.metric("Consommation", str(int(consumption_kWh))+" kWh")
     col2.metric("Facture", str(int(bill_without_nothing))+" CHF")
-    
+    col3.metric("SCORE PROFIL SOLAIRE", str(int(global_solar_friendliness_score))+" %")
+
 
 
 
@@ -1879,15 +1930,6 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     st.plotly_chart(fig_simstorage_profile)
 
 
-    with st.expander("Aperçu des heatmaps prod et conso"):
-
-        st.write("Les données vues sous forme de heatmap, ici chaque heure de consommation/production de l'année est affichée, organisée par jour de l'année et heure du jour.")
-
-        fig_production_heatmap = build_production_heatmap_figure(hours_mean_df)
-        st.pyplot(fig_production_heatmap)
-
-        fig_consumption_heatmap = build_consumption_heatmap_figure(hours_mean_df)
-        st.pyplot(fig_consumption_heatmap)
     
 
     with st.expander("Aperçus globaux de la prod et conso journalière et mensuels"):
@@ -1897,18 +1939,70 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         fig_conso_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="Consumption [kW]", title_start="Consumption", color_day = "#9A031E")
         st.pyplot(fig_conso_daymonth, width='stretch')
         
+        fig_score_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="solar_friendliness_score", title_start="Solar Friendliness Score", y_axis_label_day="Score [%]", y_axis_label_month="Score [%]", color_day = "#F39511")
+        st.pyplot(fig_score_daymonth, width='stretch')
+        
+
+
+        fig_dup = build_dup_figure(df_pow_profile)
+        st.pyplot(fig_dup)
+
+    with st.expander("Analyse du ruban de consommation"):
+        fig_cdf, ribbon_value = build_consumption_cdf_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+        st.pyplot(fig_cdf, width='stretch')
+        fig_ribbon, ribbon_value, ribbon_fraction = build_ribbon_fraction_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+        st.pyplot(fig_ribbon, width='stretch')
+
+    with st.expander("Analyse du comportemement hebdomadaire et du jour/nuit"):
+
         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile)
         st.pyplot(fig_consumption_week_analysis, width='stretch')
         
 
-        col1, col2 = st.columns([0.9, 1.1], gap="large")
+        figure_day_night_share = build_day_night_energy_share_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
+        st.pyplot(figure_day_night_share)
 
-        with col1:
-            st.write("Are the consumption and production well aligned?  if not, is it possible to move the consumption during the production time to improve the direct self-consumption?")
+        figure_day_night_share_by_week = build_day_night_energy_share_by_week_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
+        st.pyplot(figure_day_night_share_by_week)
 
-        with col2:
-            fig_polar_consumption = build_polar_consumption_profile(df_pow_profile) 
-            st.pyplot(fig_polar_consumption)
+
+        fig_consumption_week_analysis_by_season = build_consumption_week_analysis_by_season(df_pow_profile)
+        st.pyplot(fig_consumption_week_analysis_by_season)
+
+    with st.expander("Analyse de la saisonnalité"):
+
+
+        fig_mean_daily_consumption_by_season = build_mean_daily_consumption_by_season_figure(df_pow_profile)
+        st.pyplot(fig_mean_daily_consumption_by_season)
+
+
+
+        fig_polar_seasonnal_profile_tiles = build_polar_consumption_and_solar_profile_by_season_tiles(df_pow_profile)
+        st.pyplot(fig_polar_seasonnal_profile_tiles)
+
+        fig_polar_seasonnal_profile = build_polar_consumption_profile_by_season(df_pow_profile)
+        st.pyplot(fig_polar_seasonnal_profile)
+
+
+
+
+    with st.expander("Analyse de la température et de son impact sur la consommation"):
+
+        fig_temperature = build_temperature_analysis_figure(df_pow_profile)
+        st.pyplot(fig_temperature)
+
+        fig_hdd_correlation = build_monthly_consumption_vs_hdd_correlation_figure(df_pow_profile)
+        st.pyplot(fig_hdd_correlation)
+
+        
+        fig_daily_hdd_correlation, daily_base = build_daily_consumption_vs_hdd_correlation_figure(df_pow_profile)
+        st.pyplot(fig_daily_hdd_correlation)
+
+        st.write(f"Base de consommation (consommation théorique sans chauffage) estimée à partir de la corrélation journalière: {daily_base:.2f} kWh / jour soit annuellement {daily_base*365:.2f} kWh / an")
+
+        #variante avec la soustraction de la consommation d'une voiture qui fait 10'000 km par an avec une consommation de 15 kWh/100km, soit 1500 kWh par an, soit environ 4.1 kWh par jour:
+        daily_base_with_car = daily_base - 10000/100*15/365
+        st.write(f"Base de consommation (consommation théorique sans chauffage et sans voiture) estimée à partir de la corrélation journalière: {daily_base_with_car:.2f} kWh / jour soit annuellement {daily_base_with_car*365:.2f} kWh / an")
 
 
         # year_used = df_pow_profile.index.year[0]
@@ -1960,6 +2054,22 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         # st.pyplot(fig_consumption_week_analysis)
 
 
+    with st.expander("Aperçu des heatmaps prod et conso"):
+
+        st.write("Les données vues sous forme de heatmap, ici chaque heure de consommation/production de l'année est affichée, organisée par jour de l'année et heure du jour.")
+
+        fig_production_heatmap = build_production_heatmap_figure(hours_mean_df)
+        st.pyplot(fig_production_heatmap)
+
+        fig_consumption_heatmap = build_consumption_heatmap_figure(hours_mean_df)
+        st.pyplot(fig_consumption_heatmap)
+
+        fig_sunblocked_heatmap = build_sunblocked_heatmap_figure(hours_mean_df)
+        st.pyplot(fig_sunblocked_heatmap)
+        st.write(f"SCORE PROFIL SOLAIRE: {int(global_solar_friendliness_score)} %")
+
+
+        
 
     with st.expander("Aperçu du fonctionnement de la batterie"):
         
