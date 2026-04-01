@@ -775,6 +775,9 @@ if "periode_txt" not in st.session_state:
 if "uploaded_file_name" not in st.session_state:
     st.session_state.uploaded_file_name = None
 
+if "unit_choice" not in st.session_state:
+    st.session_state.unit_choice = "kWh"
+
 if "period_for_polar_user" not in st.session_state:
     st.session_state['period_for_polar_user'] = "Tout"
 
@@ -798,7 +801,8 @@ if st.session_state.hide_info == False:
         L'estimation se passe en 4 étapes:
 
         1) Entrez sur votre droite les données de base du toit, la quantité de solaire installée et la batterie, ainsi qu'une première idée des prix, par exemple avec les chiffres trouvés sur une offre.
-
+        Quelques infos sur la consommation (y a t'il une voiture électrique? du chauffage électrique? le nombre d'habitants, etc.) sont aussi demandées pour mieux contextualiser les résultats et obtenir des indicateurs corrects sur les profils de consommation: pour savoir si la consommation électrique est sobre ou non, il faut savoir si c'est pour 1 ou 10 personnes par exemple. 
+         
         Puis ci-dessous:
 
         2) Cliquer sur votre position sur la carte, cela est nécessaires pour obtenir l'estimation solaire.
@@ -917,6 +921,53 @@ fixed_price_buy_usr_input = st.sidebar.slider("Prix achat électricité (ct/kWh)
 fixed_price_sell_usr_input = st.sidebar.slider("Prix revente surplus PV (ct/kWh): ", min_value=1.0, max_value=40.0, value=8.5, step=0.1) / 100  # directly in CHF/kWh
 
 
+st.sidebar.markdown("---")
+st.sidebar.header("🏠 Habitants et usages")
+
+nbre_habitant_usr_input = st.sidebar.slider("Nombre d'habitants: ", 
+                                               min_value=1, 
+                                               max_value=10, 
+                                               value=3, 
+                                               step=1,
+                                               help=(
+                                                    "Le nombre d'habitants influence la consommation d'électricité \net il sera utilisé pour estimer la sobriété énergétique. "
+                                                    )
+                                                )
+chauffage_electrique_usr_input = st.sidebar.checkbox("Avez-vous un chauffage électrique ?",
+                                                   value=True, 
+                                                   help="Le chauffage électrique peut représenter une part importante de la consommation d'électricité du ménage, et cela influencera les résultats de l'estimation de l'autoconsommation et de l'autonomie."
+                                                   )
+
+surface_batiment_usr_input = st.sidebar.number_input("Surface du bâtiment (m²): ", 
+                                               min_value=10.0, 
+                                               max_value=1000.0, 
+                                               value=150.0, 
+                                               step=10.0,
+                                               help=(
+                                                    "La surface du bâtiment sera utilisée pour estimer la performance énergétique de l'isolation."
+                                                    )
+                                                )
+
+voiture_electrique_usr_input = st.sidebar.checkbox("Possédez-vous une voiture électrique ?", 
+                                                   value=False, 
+                                                   help="La recharge d'une voiture électrique peut représenter une part importante de la consommation d'électricité du ménage, et cela influencera les résultats de l'estimation de l'autoconsommation et de l'autonomie."
+                                                   )
+
+if voiture_electrique_usr_input:
+    km_par_an_usr_input = st.sidebar.number_input("Kilomètres parcourus par an (voiture électrique): ", 
+                                               min_value=0, 
+                                               max_value=50000, 
+                                               value=15000, 
+                                               step=500,
+                                               help=(
+                                                    "Si vous avez une voiture électrique, indiquez le nombre de kilomètres que vous parcourez par an. \n\n"
+                                                    "Cela permettra d'estimer la consommation liée à la recharge de la voiture électrique, qui peut être une part importante de la consommation totale du ménage."
+                                                    )
+                                                )
+else:
+    km_par_an_usr_input = 0
+    
+
 # On garde en state la dernière valeur courante
 
 # st.sidebar.markdown("---")
@@ -1017,8 +1068,8 @@ with col_left:
 
     if uploaded_file is not None:
 
-        # ne re-parser que si le fichier a changé
-        if st.session_state.uploaded_file_name != uploaded_file.name:
+        # ne re-parser que si le fichier a changé ou les unités, sinon on garde les données en session state pour éviter de recharger à chaque interaction
+        if st.session_state.uploaded_file_name != uploaded_file.name or st.session_state.unit_choice != unit_choice:
             try:
                 df_conso = parser_smartmeter_csv(uploaded_file, unit_choice)
                 df_conso_plot = df_conso.reset_index().rename(columns={df_conso.index.name: "time"})
@@ -1032,6 +1083,7 @@ with col_left:
                 
                 st.session_state.periode_txt = periode_txt
                 st.session_state.uploaded_file_name = uploaded_file.name
+                st.session_state.unit_choice = unit_choice
                 
                 st.success(f"Données de consommation chargées.\nPériode : {periode_txt} ")
             except Exception as e:
@@ -1045,7 +1097,7 @@ with col_left:
                 st.session_state.df_conso_plot = None
                 st.session_state.periode_txt = "non définie"
                 st.session_state.uploaded_file_name = None
-
+                st.session_state.unit_choice = None
     #st.markdown(f"**Période d'étude** : {periode_txt}")
 
     #récupération des données en session state pour les cas où le fichier n'est pas rechargé
@@ -1229,13 +1281,17 @@ if bouton_calcul:
 
                 H_hor = horizon_func(df_gti_15["sun_azimuth"].values)   # hauteur d'horizon à tous les azimuts de la période
                 
-                # #Blockage du soleil direct: à faire TODO
+                # #Blockage du soleil direct: si la hauteur du soleil est inférieure à la hauteur de l'horizon, alors le soleil est bloqué
                 sun_blocked = df_gti_15["sun_elevation"].values < H_hor        # booléen array
+                
+                #blockage du soleil hors des heures de lever/coucher, 
+                sun_blocked_horizon_0 = df_gti_15["sun_elevation"].values <= 0.0        # booléen array
 
                 # masque 0/1
                 mask_direct = (sun_blocked).astype(float)
                 df_gti_15["horizon_elevation"] = H_hor
                 df_gti_15["sun_masked"] = mask_direct
+                df_gti_15["sun_masked_hor_0"] =(sun_blocked_horizon_0).astype(float)   #
 
 
 
@@ -1494,9 +1550,9 @@ if bouton_calcul:
                     #ici le masque de soleil direct est appliqué à la consommation pour ne garder que les heures où il y a du soleil direct, 
                     #Au final le ratio de la consommation sur les heures de soleil direct par rapport à la consommation totale est un indicateur du match du profil de consommation avec la production solaire.
 
-                    #calcul du profil de consommation qui se situe durant les heures avec un soleil direct en se basant sur sun_masked:
-                    df_pow_profile["consumption_sun_masked"] = df_pow_profile["Consumption [kW]"] * (1 - df_pow_profile["sun_masked"])
-
+                    #calcul du profil de consommation qui se situe durant les heures avec un soleil direct en se basant sur sun_masked ou sun_masked_hor_0, à ajuster selon ce que l'on veut mesurer exactement, ici on prend le masque de l'horizon qui est plus réaliste que le masque à 0° qui bloque aussi les heures de soleil bas mais pas forcément bloqué par l'horizon
+                    #df_pow_profile["consumption_sun_masked"] = df_pow_profile["Consumption [kW]"] * (1 - df_pow_profile["sun_masked"])
+                    df_pow_profile["consumption_sun_masked"] = df_pow_profile["Consumption [kW]"] * (1 - df_pow_profile["sun_masked_hor_0"])
                     #TODO: provisoirement ici
                     #save hours sampling for heatmap display:
                     hours_mean_df = df_pow_profile.resample('h', label="right", closed="right").mean() 
@@ -1794,15 +1850,119 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         cost_of_stored_kWh_over_15_years = batt_total_cost_usr_input / 15.0 / batt_throughput_energy
 
     #st.write("📋 **Données de production et consommation**")
+
+
+    #Analysis of the heating and the sobriety score 
+
+
+        fig_daily_hdd_correlation, daily_base = build_daily_consumption_vs_hdd_correlation_figure(df_pow_profile)
+        
+        
+        #variante avec la soustraction de la consommation d'une voiture qui fait 10'000 km par an avec une consommation de 15 kWh/100km, soit 1500 kWh par an, soit environ 4.1 kWh par jour:
+        car_kwh_per_100km = 15.0
+        elec_car_consumption_per_year = km_par_an_usr_input / 100 * car_kwh_per_100km
+        elec_car_consumption_per_day = elec_car_consumption_per_year / 365
+        daily_base_without_car = daily_base - elec_car_consumption_per_day
+         
+        #Le score de sobriété pour la consommation de base par personne est donné par:
+        # - 100% correspond à une consommation de base par personne de 2 kWh/jour/personne ou moins
+        # - 0% correspond à une consommation de base par personne de 5 kWh/jour/personne ou plus
+
+        #il est linaire entre 2 et 5 kWh/jour/personne, et il est calculé à partir de la consommation de base par personne qui est elle même calculée à partir de la consommation totale moins la consommation de chauffage et de mobilité électrique, divisée par le nombre d'habitant.
+        score_sobriety = 100.0 - (daily_base_without_car/nbre_habitant_usr_input - 2.0) / (5.0 - 2.0) * 100.0
+        score_sobriety = max(0.0, min(100.0, score_sobriety))  #clamp entre 0 et 100
+
+
+        COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
+        energy_for_heating = consumption_kWh - daily_base * 365.0
+        heating_per_square_meter = energy_for_heating / surface_batiment_usr_input * COP
+
+
+        #Le score de consommation du bâtiment est donnée par:
+        # - 100% correspond à un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an
+        # - 75% correspond à un bâtiment SIA avec une consommation de chauffage de 30 kWh/m2/an
+        # - 50% correspond à un bâtiment standard avec une consommation de chauffage de 50 kWh/m2/an
+        # - 0% correspond à un bâtiment très énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus
+        if heating_per_square_meter < 20.0:
+            score_heating = 100.0
+        elif heating_per_square_meter < 30.0:
+            score_heating = 100.0 - (heating_per_square_meter - 20.0) / (30.0 - 20.0) * 25.0
+        elif heating_per_square_meter < 50.0:       
+            score_heating = 75.0 - (heating_per_square_meter - 30.0) / (50.0 - 30.0) * 25.0
+        elif heating_per_square_meter < 100.0:
+            score_heating = 50.0 - (heating_per_square_meter - 50.0) / (100.0 - 50.0) * 50.0
+        else:
+            score_heating = 0.0
+            
+
+
+
+    #*********************
+    # Display the results
+
     
     st.write("📋 **Reférence sans solaire ni stockage, achat au réseau simple 🔌**")
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Consommation", str(int(consumption_kWh))+" kWh")
     col2.metric("Facture", str(int(bill_without_nothing))+" CHF")
-    col3.metric("SCORE PROFIL SOLAIRE", str(int(global_solar_friendliness_score))+" %")
+    #col3.metric("SCORE PROFIL SOLAIRE", str(int(global_solar_friendliness_score))+" %")
+    
 
 
+    #st.write("Indicateurs sur le profil de consommation")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        fig_gauge_solar_score = build_gauge_figure(global_solar_friendliness_score, score_title="Score solaire \ndu profil de consommation")
+        st.pyplot(fig_gauge_solar_score) 
+
+        if global_solar_friendliness_score > 75.0:
+            st.write(f"Votre profil de consommation est trè bien adapté au solaire avec un score de {global_solar_friendliness_score:.1f} % ! Difficile de faire mieux ! ")
+        elif global_solar_friendliness_score > 50.0:
+            st.write(f"Votre profil de consommation est déjà bien adapté au solaire avec un score de {global_solar_friendliness_score:.1f} % ! Il est toujours possible d'améliorer ce score en adaptant votre consommation pour mieux profiter du solaire mais c'est déjà du réglage fin, par exemple en décalant certaines consommations durant les heures de soleil direct. Faisant attention de charger les véhicules électrique la journée. En faisant plus attention à la période hivernale où les jours sont plus courts pour les réglages de l'eau chaude et du chauffage.")
+        elif global_solar_friendliness_score > 20.0:
+            st.write(f"Votre profil de consommation a un score solaire de {global_solar_friendliness_score:.1f} %. Il pourrait être amélioré pour mieux profiter du solaire.")    
+        else:
+            st.write(f"Votre profil de consommation a un score solaire de {global_solar_friendliness_score:.1f} %. Il est peu adapté au solaire, il pourrait être intéressant d'adapter votre consommation pour mieux profiter du solaire.")    
+
+ 
+    with col2:
+        
+        fig_cdf, ribbon_value = build_consumption_cdf_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+        fig_ribbon, ribbon_value, ribbon_fraction, score_standby_ribbon = build_ribbon_fraction_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+
+        fig_gauge_ribbon_score = build_gauge_figure(score_standby_ribbon, score_title="Score ruban/standby \n du profil de consommation")
+        st.pyplot(fig_gauge_ribbon_score)
+
+        if score_standby_ribbon > 75.0:
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % ! Cela signifie qu'il y a peu de consommation toujours présente et que cette partie est bien optimisée. Seulement {ribbon_fraction :.1f} % de la facture est due à une consommation permanente, ce qui est très bon !")
+        elif score_standby_ribbon > 50.0:
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} %. Il pourrait être amélioré en recherchant les charges qui renstent branchées en permanence. Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")    
+        elif score_standby_ribbon > 25.0:
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % est mauvais. Il y a des consommateurs branchés en permanence, qui représentent une part significative de l'énergie consommée. Il serait possible d'économiser.Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")
+        else:
+            st.write("Score ruban très mauvais, il y a beaucoup de consommateurs branchés en permanence, qui représentent une part très importante de l'énergie consommée. Il serait fortement recommandé d'identifier ces consommateurs et de les débrancher si possible. Le potentiel d'économie est important.Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")
+
+    with col3:
+            fig_sobriety_score = build_gauge_figure(score_sobriety, score_title="Score de sobriété \nde la consommation de base par personne")
+            st.pyplot(fig_sobriety_score)        
+            #st.write(f"Score Sobriété pour {nbre_habitant_usr_input} habitants :  A FAIRE" )
+
+            st.write(f"La base de consommation indépendante de la température et donc du chauffage est estimée à partir de la corrélation journalière à: {daily_base:.2f} kWh/jour et annuellement à {daily_base*365:.2f} kWh/an.")
+            st.write("A cela la consommation pour la mobilité électrique est soustraite pour estimer la consommation qui serait présente même sans chauffage et sans voiture électrique, et qui correspond à la consommation de confort et des autres usages (électroménager, éclairage, électronique, etc). Cette valeur par habitant donne un indicateur sur la sobriété énergétique")
+            st.write(f"La consommation électrique quotidienne est donc de {daily_base_without_car:.2f} kWh/jour et pour {nbre_habitant_usr_input} personnes et donc {daily_base_without_car/nbre_habitant_usr_input:.2f} kWh/jour/personne.")
+
+    with col4:
+            fig_heating_score = build_gauge_figure(score_heating, score_title="Score de consommation pour le chauffage")
+            st.pyplot(fig_heating_score)  
+            #if the user has no electrical heating, it makes no sense to display the heating score, so we can hide it in that case:
+            if  not chauffage_electrique_usr_input:
+                st.write("Comme vous n'avez pas de chauffage électrique, le score de consommation pour le chauffage ne peut pas être déduit de la consommation électrique. Il n'est pas pertinent dans votre cas.")
+            else:
+                st.write(f"La part de consommation dépendante de la température est dans le total est {energy_for_heating:.0f} kWh par an, soit {energy_for_heating/consumption_kWh*100:.1f} % de la consommation totale")
+                st.write(f"Sur une surface de {surface_batiment_usr_input:.0f} m2, cela correspond à une consommation de chauffage de {heating_per_square_meter:.2f} kWh/m2/an avec un COP de {COP}, ce qui peut être comparé à d'autres bâtiments pour estimer l'efficacité énergétique et identifier les potentiels d'amélioration, par exemple avec l'isolation ou en adaptant les systèmes de chauffage.")
+                st.write(f"Le score de consommation pour le chauffage du bâtiment est de {score_heating:.1f} % (100% pour un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an, 0% pour un bâtiment énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus).")
+                
 
 
     st.write("📋 **Résultat avec solaire seulement ☀️, sans stockage**")
@@ -1838,25 +1998,26 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     # st.pyplot(fig_polar_indicators2)
     st.write( "\n \n")
 
+    with st.expander("Indicateurs quotidiens d'autoconsommation et autonomie"):
+        fig_polar_indicators = build_daily_indicators_polar_fraction_figure(day_kwh_df)
+        st.pyplot(fig_polar_indicators)
+        st.write(""" Des explication sur les indicateurs utilisés peuvent être trouvés ici --> [INDICATEURS DANS LE SOLAIRE](https://autoconsommation.ch/indicateurs/)  """)
 
-    fig_polar_indicators = build_daily_indicators_polar_fraction_figure(day_kwh_df)
-    st.pyplot(fig_polar_indicators)
 
-    st.write(""" Des explication sur les indicateurs utilisés peuvent être trouvés ici --> [INDICATEURS DANS LE SOLAIRE](https://autoconsommation.ch/indicateurs/)  """)
     st.write( "\n \n")
 
 
 
-    st.write(" **Les résultats**")
+    st.write(" **Les résultats en texte**")
 
 
 
-    st.markdown(f""" ***Référence***
+    st.markdown(f""" ***🏠 Référence***
     - La consommation d'électricité pour cette période est {consumption_kWh:.2f} kWh 🔌
     - Le coût de l'électricité du réseau sans panneaux solaires est {cost_buying_no_solar_chf:.2f} CHF, prix moyen est {cost_buying_no_solar_chf/consumption_kWh:.3f} CHF/kWh
     """)
 
-    st.markdown(f""" ***☀️ Avec solaire***
+    st.markdown(f""" ***🏠 ☀️ Avec solaire***
     - La consommation d'électricité sur le réseau pour cette période est {reference_grid_consumption_kWh:.2f} kWh avec des panneaux solaires
     - Le coût de l'électricité du réseau est {cost_buying_solar_only_chf:.2f} CHF avec des panneaux solaires, prix moyen est {cost_buying_solar_only_chf/reference_grid_consumption_kWh:.3f} CHF/kWh
     - L'énergie perdue due à la limitation de revente sur le réseau est {reference_curtailment_lost_energy_kwh :.0f} kWh et le niveau de limitation est {pv_injection_curtailment_power:.2f} kW
@@ -1865,7 +2026,7 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     - Le prix investi dans les panneaux solaires de {PV_total_cost_usr_input:.2f} CHF est retrouvé en {PV_total_cost_usr_input/(cost_buying_no_solar_chf-bill_with_solar_only):.1f} années (calcul simple sans actualisation, si une année complète de données est utilisée).
     """)
 
-    st.markdown(f""" ***🔋 Avec stockage***
+    st.markdown(f""" ***🏠 🔋☀️ Avec stockage***
     - La consommation d'électricité sur le réseau pour cette période est {grid_consumption_kWh_with_storage:.2f} kWh avec stockage
     - L'énergie perdue due à la limitation de revente sur le réseau est {curtailment_lost_energy_kWh :.0f} kWh
     - Le coût de l'électricité du réseau est {cost_buying_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {cost_buying_solar_storage_chf/grid_consumption_kWh_with_storage:.3f} CHF/kWh
@@ -1948,34 +2109,39 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         st.pyplot(fig_dup)
 
     with st.expander("Analyse du ruban de consommation"):
-        fig_cdf, ribbon_value = build_consumption_cdf_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+        #fig_cdf, ribbon_value = build_consumption_cdf_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+        #fig_ribbon, ribbon_value, ribbon_fraction, score_standby_ribbon = build_ribbon_fraction_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"Score de ruban du profil de consommation: {score_standby_ribbon:.1f}%, basé sur une fraction de ruban de {ribbon_fraction:.1f} % pour un niveau de ruban de {ribbon_value:.2f} kW")    
+
+        with col2:
+            #fig_gauge_ribbon_score = build_gauge_figure(score_standby_ribbon, score_title="Score de ruban du profil de consommation")
+            st.pyplot(fig_gauge_ribbon_score)
+
         st.pyplot(fig_cdf, width='stretch')
-        fig_ribbon, ribbon_value, ribbon_fraction = build_ribbon_fraction_figure(df_pow_profile, column_name="Consumption [kW]", ribbon_level=10)
         st.pyplot(fig_ribbon, width='stretch')
+
 
     with st.expander("Analyse du comportemement hebdomadaire et du jour/nuit"):
 
         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile)
         st.pyplot(fig_consumption_week_analysis, width='stretch')
         
-
         figure_day_night_share = build_day_night_energy_share_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
         st.pyplot(figure_day_night_share)
 
         figure_day_night_share_by_week = build_day_night_energy_share_by_week_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
         st.pyplot(figure_day_night_share_by_week)
 
-
         fig_consumption_week_analysis_by_season = build_consumption_week_analysis_by_season(df_pow_profile)
         st.pyplot(fig_consumption_week_analysis_by_season)
 
     with st.expander("Analyse de la saisonnalité"):
 
-
         fig_mean_daily_consumption_by_season = build_mean_daily_consumption_by_season_figure(df_pow_profile)
         st.pyplot(fig_mean_daily_consumption_by_season)
-
-
 
         fig_polar_seasonnal_profile_tiles = build_polar_consumption_and_solar_profile_by_season_tiles(df_pow_profile)
         st.pyplot(fig_polar_seasonnal_profile_tiles)
@@ -1991,18 +2157,67 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         fig_temperature = build_temperature_analysis_figure(df_pow_profile)
         st.pyplot(fig_temperature)
 
-        fig_hdd_correlation = build_monthly_consumption_vs_hdd_correlation_figure(df_pow_profile)
-        st.pyplot(fig_hdd_correlation)
+        # fig_hdd_correlation = build_monthly_consumption_vs_hdd_correlation_figure(df_pow_profile)
+        # st.pyplot(fig_hdd_correlation)
 
-        
         fig_daily_hdd_correlation, daily_base = build_daily_consumption_vs_hdd_correlation_figure(df_pow_profile)
         st.pyplot(fig_daily_hdd_correlation)
-
-        st.write(f"Base de consommation (consommation théorique sans chauffage) estimée à partir de la corrélation journalière: {daily_base:.2f} kWh / jour soit annuellement {daily_base*365:.2f} kWh / an")
-
+        
+        st.write(f"La base de consommation indépendante de la température et donc du chauffage est estimée à partir de la corrélation journalière à: {daily_base:.2f} kWh/jour et annuellement à {daily_base*365:.2f} kWh/an.")
+        st.write("A cela la consommation pour la mobilité électrique est soustraite pour estimer la consommation qui serait présente même sans chauffage et sans voiture électrique, et qui correspond à la consommation de confort et des autres usages (électroménager, éclairage, électronique, etc). Cette valeur par habitant donne un indicateur sur la sobriété énergétique")
+        
         #variante avec la soustraction de la consommation d'une voiture qui fait 10'000 km par an avec une consommation de 15 kWh/100km, soit 1500 kWh par an, soit environ 4.1 kWh par jour:
-        daily_base_with_car = daily_base - 10000/100*15/365
-        st.write(f"Base de consommation (consommation théorique sans chauffage et sans voiture) estimée à partir de la corrélation journalière: {daily_base_with_car:.2f} kWh / jour soit annuellement {daily_base_with_car*365:.2f} kWh / an")
+        car_kwh_per_100km = 15.0
+        elec_car_consumption_per_year = km_par_an_usr_input / 100 * car_kwh_per_100km
+        elec_car_consumption_per_day = elec_car_consumption_per_year / 365
+        daily_base_without_car = daily_base - elec_car_consumption_per_day
+        st.write(f"La consommation de la voiture électrique estimée à partir des données d'entrée est {elec_car_consumption_per_year:.2f} kWh/an, soit : {elec_car_consumption_per_day:.2f} kWh/jour ({elec_car_consumption_per_day/car_kwh_per_100km*100 :.1f} km).")
+        st.write(f"La consommation électrique quotidienne est donc de {daily_base_without_car:.2f} kWh/jour et pour {nbre_habitant_usr_input} personnes et donc {daily_base_without_car/nbre_habitant_usr_input:.2f} kWh/jour/personne.")
+
+        st.write("Ce dernier chiffre de consommation de base par personne peut être comparé à des moyennes pour voir si l'utilisation est globalement plus ou moins élevé, et ainsi estimer la sobriété et le potentiel de réduction de la consommation de confort ou en adaptant les comportements.")
+        
+        #Le score de sobriété pour la consommation de base par personne est donné par:
+        # - 100% correspond à une consommation de base par personne de 2 kWh/jour/personne ou moins
+        # - 0% correspond à une consommation de base par personne de 5 kWh/jour/personne ou plus
+
+        #il est linaire entre 2 et 5 kWh/jour/personne, et il est calculé à partir de la consommation de base par personne qui est elle même calculée à partir de la consommation totale moins la consommation de chauffage et de mobilité électrique, divisée par le nombre d'habitant.
+        score_sobriety = 100.0 - (daily_base_without_car/nbre_habitant_usr_input - 2.0) / (5.0 - 2.0) * 100.0
+        score_sobriety = max(0.0, min(100.0, score_sobriety))  #clamp entre 0 et 100
+
+        fig_sobriety_score = build_gauge_figure(score_sobriety, score_title="Score de sobriété \nde la consommation de base par personne")
+        st.pyplot(fig_sobriety_score)        
+
+
+
+        COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
+        energy_for_heating = consumption_kWh - daily_base * 365.0
+        heating_per_square_meter = energy_for_heating / surface_batiment_usr_input * COP
+
+
+        st.write(f"La part de consommation dépendante de la température est dans le total est {energy_for_heating:.0f} kWh par an, soit {energy_for_heating/consumption_kWh*100:.1f} % de la consommation totale")
+        st.write(f"Sur une surface de {surface_batiment_usr_input:.0f} m2, cela correspond à une consommation de chauffage de {heating_per_square_meter:.2f} kWh/m2/an avec un COP de {COP}, ce qui peut être comparé à d'autres bâtiments pour estimer l'efficacité énergétique et identifier les potentiels d'amélioration, par exemple avec l'isolation ou en adaptant les systèmes de chauffage.")
+
+        #Le score de consommation du bâtiment est donnée par:
+        # - 100% correspond à un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an
+        # - 75% correspond à un bâtiment SIA avec une consommation de chauffage de 30 kWh/m2/an
+        # - 50% correspond à un bâtiment standard avec une consommation de chauffage de 50 kWh/m2/an
+        # - 0% correspond à un bâtiment très énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus
+        if heating_per_square_meter < 20.0:
+            score_heating = 100.0
+        elif heating_per_square_meter < 30.0:
+            score_heating = 100.0 - (heating_per_square_meter - 20.0) / (30.0 - 20.0) * 25.0
+        elif heating_per_square_meter < 50.0:       
+            score_heating = 75.0 - (heating_per_square_meter - 30.0) / (50.0 - 30.0) * 25.0
+        elif heating_per_square_meter < 100.0:
+            score_heating = 50.0 - (heating_per_square_meter - 50.0) / (100.0 - 50.0) * 50.0
+        else:
+            score_heating = 0.0
+            
+
+        st.write(f"Le score de consommation pour le chauffage du bâtiment est de {score_heating:.1f} % (100% pour un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an, 0% pour un bâtiment énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus).")
+        
+        fig_heating_score = build_gauge_figure(score_heating, score_title="Score de consommation pour le chauffage")
+        st.pyplot(fig_heating_score)    
 
 
         # year_used = df_pow_profile.index.year[0]

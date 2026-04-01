@@ -12,6 +12,8 @@
 
 #from tkinter import Image
 import matplotlib.pyplot as plt
+from matplotlib.patches import Wedge, Circle
+
 import numpy as np
 import pandas as pd
 import datetime
@@ -150,13 +152,13 @@ def build_production_heatmap_figure(hours_mean_df):
     #print(consumption_data)
 
     # Determine the shape of the reshaped array
-    n_days = len(consumption_data) // (24)
-    n_hours = 24
     
     # If the number of data points is not a multiple of 24, truncate to make it so
     if len(consumption_data) % 24 != 0:
         consumption_data = consumption_data[:len(consumption_data) - (len(consumption_data) % 24)]
         date_of_consumption_data = date_of_consumption_data[:len(date_of_consumption_data) - (len(date_of_consumption_data) % 24)]
+    n_days = len(consumption_data) // (24)
+    n_hours = 24
     
     # Reshape the data into a 2D array (days x hours)
     consumption_data = consumption_data.reshape(n_days, n_hours)       
@@ -215,14 +217,14 @@ def build_consumption_heatmap_figure(hours_mean_df):
     date_of_consumption_data = energies_by_hours.index.date
 
     # Determine the shape of the reshaped array
-    n_days = len(consumption_data) // (24)
-    n_hours = 24
-    
-       # If the number of data points is not a multiple of 24, truncate to make it so
+    # If the number of data points is not a multiple of 24, truncate to make it so
     if len(consumption_data) % 24 != 0:
         consumption_data = consumption_data[:len(consumption_data) - (len(consumption_data) % 24)]
         date_of_consumption_data = date_of_consumption_data[:len(date_of_consumption_data) - (len(date_of_consumption_data) % 24)]
+    n_days = len(consumption_data) // (24)
+    n_hours = 24
     
+
     # Reshape the data into a 2D array (days x hours)
     consumption_data = consumption_data.reshape(n_days, n_hours)
     date_of_consumption_data= date_of_consumption_data.reshape(n_days, n_hours) #reshape to get one point each day
@@ -326,7 +328,13 @@ def build_hours_grid_heatmap_figure(hours_mean_df):
 def build_sunblocked_heatmap_figure(hours_mean_df):
     
     all_channels_labels = list(hours_mean_df.columns)
-    channel_number_used = [i for i, elem in enumerate(all_channels_labels) if ('sun_masked' in elem) ]  #consumption_sun_masked sun_masked
+
+    #choose between:
+    #sun_masked
+    #sun_masked_hor_0
+    #consumption_sun_masked
+
+    channel_number_used = [i for i, elem in enumerate(all_channels_labels) if ('sun_masked_hor_0' in elem) ]  # sun_masked_hor_0 consumption_sun_masked sun_masked
         
     #print(all_channels_labels)
     #print(channel_number_SOC)
@@ -342,14 +350,14 @@ def build_sunblocked_heatmap_figure(hours_mean_df):
     #print(consumption_data)
 
     # Determine the shape of the reshaped array
-    n_days = len(consumption_data) // (24)
-    n_hours = 24
-    
     # If the number of data points is not a multiple of 24, truncate to make it so
     if len(consumption_data) % 24 != 0:
         consumption_data = consumption_data[:len(consumption_data) - (len(consumption_data) % 24)]
         date_of_consumption_data = date_of_consumption_data[:len(date_of_consumption_data) - (len(date_of_consumption_data) % 24)]
     
+    n_days = len(consumption_data) // (24)
+    n_hours = 24
+
     # Reshape the data into a 2D array (days x hours)
     consumption_data = consumption_data.reshape(n_days, n_hours)       
     date_of_consumption_data= date_of_consumption_data.reshape(n_days, n_hours) #reshape to get one point each day
@@ -448,7 +456,6 @@ def build_battery_SOC_min_max_analysis_figure(quarters_mean_df):
 
 
 
-    return fig_hist
 
 def build_power_histogram_figure(quarters_mean_df):
     all_channels_labels = list(quarters_mean_df.columns)
@@ -2286,7 +2293,7 @@ def build_consumption_cdf_figure(total_datalog_df, column_name=None, ribbon_leve
     annotation_x = consumption_ribbon * 1.25 if consumption_ribbon > 0 else values.max() * 0.1
     annotation_y = min(ribbon_level + 8, 98)
     ax_cdf.annotate(
-        f"{consumption_ribbon:.2f}",
+        f"{consumption_ribbon:.2f} kW",
         xy=(consumption_ribbon, ribbon_level),
         xytext=(annotation_x, annotation_y),
         arrowprops=dict(facecolor='black', shrink=0.05),
@@ -2396,4 +2403,101 @@ def build_ribbon_fraction_figure(total_datalog_df, column_name=None, ribbon_leve
     if I_WANT_TO_SAVE_PNG:
         fig_ribbon.savefig("FigureExport/ribbon_fraction_figure.png")
 
-    return fig_ribbon, consumption_ribbon, ribbon_fraction
+    #L’équation  y = 172.62x3 - 124.03x2 + 52.403x sera utilisée sur (1-ribbon_fraction) pour calculer un score de ruban du profil de consommation
+    score_standby_ribbon = 172.62*(1-ribbon_fraction/100)**3 - 124.03*(1-ribbon_fraction/100)**2 + 52.403*(1-ribbon_fraction/100)
+    
+    return fig_ribbon, consumption_ribbon, ribbon_fraction, score_standby_ribbon
+
+
+
+def build_gauge_figure(value, score_title="Gauge"):
+    """
+    Build a gauge figure to display a single value in a visually appealing way.
+
+    The gauge is a semicircle with a needle pointing to the value position.
+    """
+    score = float(np.clip(value, 0, 100))
+
+    #score_title = "Score solaire"
+    labels = ['Mauvais', 'Moyen', 'Bon', 'Excellent']
+    section_colors = ["#ee4d55", "#fabd57",  "#c1da64", '#4dab6d',]
+    section_bounds = [0, 25, 50, 75, 100]
+
+    if score < 25:
+        score_label = labels[0]
+    elif score < 50:
+        score_label = labels[1]
+    elif score < 75:
+        score_label = labels[2]
+    else:
+        score_label = labels[3]
+
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.set_aspect('equal')
+
+    outer_radius = 0.75
+    ring_width = 0.28
+
+    for start, end, color in zip(section_bounds[:-1], section_bounds[1:], section_colors):
+        theta1 = 180 - (end / 100) * 180
+        theta2 = 180 - (start / 100) * 180
+        ax.add_patch(
+            Wedge(
+                (0, 0),
+                outer_radius,
+                theta1,
+                theta2,
+                width=ring_width,
+                facecolor=color,
+                edgecolor='white',
+                linewidth=2,
+            )
+        )
+
+    for tick in section_bounds:
+        angle = np.deg2rad(180 - (tick / 100) * 180)
+        x_outer, y_outer = outer_radius * np.cos(angle), outer_radius * np.sin(angle)
+        x_inner, y_inner = (outer_radius - 0.08) * np.cos(angle), (outer_radius - 0.08) * np.sin(angle)
+        ax.plot([x_inner, x_outer], [y_inner, y_outer], color='#111827', lw=1.5)
+        x_text, y_text = (outer_radius + 0.12) * np.cos(angle), (outer_radius + 0.12) * np.sin(angle)
+        ax.text(x_text, y_text, f'{tick}%', ha='center', va='center', fontsize=11, color='#111827')
+
+    needle_angle = np.deg2rad(180 - (score / 100) * 180)
+    needle_length = outer_radius - ring_width *2 /3
+    ax.plot(
+        [0, needle_length * np.cos(needle_angle)],
+        [0, needle_length * np.sin(needle_angle)],
+        color='#111827',
+        lw=3,
+    )
+    ax.add_patch(Circle((0, 0), 0.05, color='#111827'))
+
+    ax.text(0, 1.08, f'{score_title}\n {score:.0f}%', ha='center', va='center', fontsize=18, fontweight='bold', color='#111827')
+    #ax.text(0, 0.35, f'{score:.1f}%', ha='center', va='center', fontsize=24, fontweight='bold', color='#111827')
+    #ax.text(0.28, 0.35, score_label.capitalize(), ha='left', va='center', fontsize=14, fontweight='bold', color='#374151')
+    #ax.text(0, 0.18, f'Temps sous {threshold_percent:.0f}% de Emax15min', ha='center', va='center', fontsize=13, color='#374151')
+
+    #add the label of each serction in the middle of the section with proper angle and distance from the center:
+
+    for i in range(len(section_colors)):
+        start = section_bounds[i]
+        end = section_bounds[i + 1]
+        angle = np.deg2rad(180 - ((start + end) / 2) / 100 * 180)
+        x_label, y_label = (outer_radius - ring_width / 2) * np.cos(angle), (outer_radius - ring_width / 2) * np.sin(angle)
+        ax.text(x_label, y_label, labels[i], ha='center', va='center', fontsize=12, color='white', fontweight='bold', rotation=np.rad2deg(angle) - 90  )
+    ax.set_xlim(-1.25, 1.25)
+    ax.set_ylim(-0.15, 1.2)
+    ax.axis('off')
+    plt.tight_layout()
+    
+        
+
+    if I_WANT_WATERMARK_ON_FIGURE:
+        im = Image.open(WATERMARK_PICTURE)
+        fig.figimage(im, 0.05 * FIGSIZE_WIDTH * 150, 0.1 * FIGSIZE_HEIGHT * 150, zorder=3, alpha=.2)
+
+    if I_WANT_TO_SAVE_PNG:
+        fig.savefig("FigureExport/gauge_figure.png")
+
+    return fig    
