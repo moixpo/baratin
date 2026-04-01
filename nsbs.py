@@ -1265,9 +1265,11 @@ if bouton_calcul:
                 #np_az[np_az > 180.0 ] = np_az[np_az > 180.0 ]-360.0
                 
                 #et corrige l'azimth quand on pass sous l'horizon, pour ne pas voir des sauts inutiles lors des vérifications
-                np_elev = df_sun_pos["elevation"].values
-                np_az[np_elev < 0.0] = 0.0
-                np_elev[np_elev < 0.0] = 0.0
+                
+                np_elev = np.maximum(df_sun_pos["elevation"].to_numpy(), 0.0)
+                np_az[np_elev <= 0.0] = 0.0
+                
+        
 
                 df_sun_pos["sun_azimuth_corrected"] =  np_az  
 
