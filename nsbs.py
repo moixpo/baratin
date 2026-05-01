@@ -106,7 +106,7 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
     if len(numeric_cols) == 0:
         #essayons de convertir la première colonne non numérique en numérique:
 
-        non_numeric_cols = df.select_dtypes(include="object").columns
+        non_numeric_cols = df.select_dtypes(include=["object", "string"]).columns
         #print(non_numeric_cols)
         if len(non_numeric_cols) > 0:
             col_to_convert = non_numeric_cols[0]
@@ -119,7 +119,7 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
             #Si il y moins de 1% de NaN, on peut considérer que la conversion a réussi et on remplace les NaN par 0
             threshold = 0.01 * len(df)
             if df[col_to_convert].isna().sum() <= threshold:
-                df[col_to_convert].fillna(0, inplace=True)
+                df[col_to_convert] = df[col_to_convert].fillna(0)
             else:
                 raise ValueError(f"Conversion de la colonne '{col_to_convert}' échouée : trop de NaN ({df[col_to_convert].isna().sum()}) \nMerci de fournir un fichier avec au moins une colonne de valeurs numériques.")
         #         raise ValueError(
@@ -1546,9 +1546,12 @@ if bouton_calcul:
                     df_pow_profile = df_pow_profile.dropna(subset=["gti_wm2", "production_pv_kwh", "production_pv_kW"])
 
                     #renomme les colonnes comme dans l'app battery sizer pour pouvoir utiliser les mêmes fonctions de calcul et de plot ensuite:              
-                    df_pow_profile.rename(columns={"consommation": "Consumption [kW]", 
-                                           "production_pv_kW_avec_neige": "Solar power scaled"},
-                                            inplace=True,)
+                    df_pow_profile = df_pow_profile.rename(
+                        columns={
+                            "consommation": "Consumption [kW]",
+                            "production_pv_kW_avec_neige": "Solar power scaled",
+                        }
+                    )
 
 
                     st.write('\n \n')

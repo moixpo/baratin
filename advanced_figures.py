@@ -445,8 +445,8 @@ def build_battery_SOC_min_max_analysis_figure(quarters_mean_df):
 
     axes_batt_soc[1].grid(True) 
     
-    axes_batt_soc[1].set_ylabel('$\Delta$ SOC [%]', fontsize=12)
-    axes_batt_soc[1].legend(['$\Delta$ SOC', 'mean'])
+    axes_batt_soc[1].set_ylabel(r'$\Delta$ SOC [%]', fontsize=12)
+    axes_batt_soc[1].legend([r'$\Delta$ SOC', 'mean'])
 
 
     # fig_batt_soc.figimage(im, 10, 10, zorder=3, alpha=.2)
