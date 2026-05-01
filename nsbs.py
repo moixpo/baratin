@@ -132,8 +132,27 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
     cons_col = numeric_cols[0] 
     df = df[[cons_col]].rename(columns={cons_col: "consommation"})
 
-    # On supprime les lignes vides / NaN
+
+    df["consommation"] = pd.to_numeric(df["consommation"], errors="coerce")
+    missing_count = df["consommation"].isna().sum()
+    missing_ratio = missing_count / len(df)
+
+    if missing_ratio > 0.01:
+        st.warning(
+            f"Le fichier contient {missing_count} valeur(s) manquante(s) "
+            f"({missing_ratio:.1%} des donnees). Elles seront completees "
+            "avec la valeur valide la plus proche."
+        )
+
+    # Remplit les valeurs manquantes avec la valeur valide la plus proche dans le temps
+    df["consommation"] = df["consommation"].interpolate(
+        method="nearest",
+        limit_direction="both",
+    )
+
+    # Si jamais il reste des NaN impossibles à remplir
     df = df.dropna(subset=["consommation"])
+
 
     #Et on applique le facteur de conversion pour que la colonne "consommation" soit en kW (puissance instantanée) quelle que soit l'unité d'origine (kW, Wh ou kWh):
     df["consommation"] = df["consommation"] * power_conversion_factor
@@ -1921,7 +1940,7 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         if global_solar_friendliness_score > 75.0:
             st.write(f"Votre profil de consommation est trè bien adapté au solaire avec un score de {global_solar_friendliness_score:.1f} % ! Difficile de faire mieux ! ")
         elif global_solar_friendliness_score > 50.0:
-            st.write(f"Votre profil de consommation est déjà bien adapté au solaire avec un score de {global_solar_friendliness_score:.1f} % ! Il est toujours possible d'améliorer ce score en adaptant votre consommation pour mieux profiter du solaire mais c'est déjà du réglage fin, par exemple en décalant certaines consommations durant les heures de soleil direct. Faisant attention de charger les véhicules électrique la journée. En faisant plus attention à la période hivernale où les jours sont plus courts pour les réglages de l'eau chaude et du chauffage.")
+            st.write(f"Votre profil de consommation est déjà bien adapté au solaire avec un score de {global_solar_friendliness_score:.1f} % ! Il est toujours possible d'améliorer ce score en adaptant votre consommation pour mieux profiter du solaire, par exemple en décalant certaines consommations durant les heures de soleil direct, en faisant attention de charger les véhicules électrique la journée, en faisant plus attention à la période hivernale où les jours sont plus courts pour les réglages de l'eau chaude et du chauffage. \nNous entrons dans le réglage fin!")
         elif global_solar_friendliness_score > 20.0:
             st.write(f"Votre profil de consommation a un score solaire de {global_solar_friendliness_score:.1f} %. Il pourrait être amélioré pour mieux profiter du solaire.")    
         else:
@@ -1937,13 +1956,13 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         st.pyplot(fig_gauge_ribbon_score)
 
         if score_standby_ribbon > 75.0:
-            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % ! Cela signifie qu'il y a peu de consommation toujours présente et que cette partie est bien optimisée. Seulement {ribbon_fraction :.1f} % de la facture est due à une consommation permanente, ce qui est très bon !")
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % ! Cela signifie qu'il y a peu de consommation toujours présente et que cette partie est bien optimisée. Seulement {ribbon_fraction:.1f} % de la facture est due à une consommation permanente, ce qui est très bon !")
         elif score_standby_ribbon > 50.0:
-            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} %. Il pourrait être amélioré en recherchant les charges qui renstent branchées en permanence. Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")    
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} %. Il pourrait être amélioré en recherchant les charges qui renstent branchées en permanence. Il y a {ribbon_fraction:.1f} % de la facture qui est due à une consommation permanente")    
         elif score_standby_ribbon > 25.0:
-            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % est mauvais. Il y a des consommateurs branchés en permanence, qui représentent une part significative de l'énergie consommée. Il serait possible d'économiser.Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")
+            st.write(f"Votre profil de consommation a un score de ruban de {score_standby_ribbon:.1f} % est mauvais. Il y a des consommateurs branchés en permanence, qui représentent une part significative de l'énergie consommée. Il serait possible d'économiser.Il y a {ribbon_fraction:.1f} % de la facture qui est due à une consommation permanente")
         else:
-            st.write("Score ruban très mauvais, il y a beaucoup de consommateurs branchés en permanence, qui représentent une part très importante de l'énergie consommée. Il serait fortement recommandé d'identifier ces consommateurs et de les débrancher si possible. Le potentiel d'économie est important.Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")
+            st.write(f"Score ruban très mauvais, il y a beaucoup de consommateurs branchés en permanence, qui représentent une part très importante de l'énergie consommée. Il serait fortement recommandé d'identifier ces consommateurs et de les débrancher si possible. Le potentiel d'économie est important.Il y a {ribbon_fraction :.1f} % de la facture qui est due à une consommation permanente")
 
     with col3:
             fig_sobriety_score = build_gauge_figure(score_sobriety, score_title="Score de sobriété \nde la consommation de base par personne")
@@ -2140,6 +2159,10 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         fig_consumption_week_analysis_by_season = build_consumption_week_analysis_by_season(df_pow_profile)
         st.pyplot(fig_consumption_week_analysis_by_season)
 
+        fig_delay = build_delay_autocorrelation_and_matrix_figure(df_pow_profile, column_name="Consumption [kW]")
+        st.pyplot(fig_delay)
+        
+
     with st.expander("Analyse de la saisonnalité"):
 
         fig_mean_daily_consumption_by_season = build_mean_daily_consumption_by_season_figure(df_pow_profile)
@@ -2280,6 +2303,9 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
 
         fig_consumption_heatmap = build_consumption_heatmap_figure(hours_mean_df)
         st.pyplot(fig_consumption_heatmap)
+
+        fig_consumption_jointplot = build_consumption_jointplot_heatmap_figure(hours_mean_df)
+        st.pyplot(fig_consumption_jointplot)
 
         fig_sunblocked_heatmap = build_sunblocked_heatmap_figure(hours_mean_df)
         st.pyplot(fig_sunblocked_heatmap)

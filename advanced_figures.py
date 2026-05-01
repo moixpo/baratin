@@ -2501,3 +2501,268 @@ def build_gauge_figure(value, score_title="Gauge"):
         fig.savefig("FigureExport/gauge_figure.png")
 
     return fig    
+
+
+def build_delay_autocorrelation_and_matrix_figure(total_datalog_df, column_name=None, delays_in_samples=None):
+    """
+    Build a two-panel figure showing:
+    - on the left: the autocorrelation of one time series for selected delays
+    - on the right: the correlation matrix between the original series and delayed copies
+
+    Default delays are expressed in number of samples and assume a 15-minute base step:
+    4 (1 h), 8, 16, 48, 96 and 96 * 7 (1 week).
+    """
+
+    if delays_in_samples is None:
+        delays_in_samples = [4, 8, 16, 48, 96, 2 * 4 * 24, 96 * 7]
+
+    if total_datalog_df.empty:
+        fig_delay, axes_delay = plt.subplots(ncols=2, figsize=(FIGSIZE_WIDTH * 1.4, FIGSIZE_HEIGHT))
+        axes_delay[0].set_title("Autocorrelation unavailable: no data", fontsize=12, weight="bold")
+        axes_delay[1].set_title("Correlation matrix unavailable: no data", fontsize=12, weight="bold")
+        for ax in axes_delay:
+            ax.grid(True, alpha=0.4)
+        fig_delay.tight_layout()
+        return fig_delay
+
+    all_channels_labels = list(total_datalog_df.columns)
+
+    if column_name is None:
+        channel_number = [i for i, elem in enumerate(all_channels_labels) if "Consumption" in elem]
+        if not channel_number:
+            fig_delay, axes_delay = plt.subplots(ncols=2, figsize=(FIGSIZE_WIDTH * 1.4, FIGSIZE_HEIGHT))
+            axes_delay[0].set_title("Autocorrelation unavailable: no consumption channel found", fontsize=12, weight="bold")
+            axes_delay[1].set_title("Correlation matrix unavailable: no consumption channel found", fontsize=12, weight="bold")
+            for ax in axes_delay:
+                ax.grid(True, alpha=0.4)
+            fig_delay.tight_layout()
+            return fig_delay
+        column_name = all_channels_labels[channel_number[0]]
+
+    series = pd.to_numeric(total_datalog_df[column_name], errors='coerce').dropna()
+
+    if len(series) < 3:
+        fig_delay, axes_delay = plt.subplots(ncols=2, figsize=(FIGSIZE_WIDTH * 1.4, FIGSIZE_HEIGHT))
+        axes_delay[0].set_title("Autocorrelation unavailable: not enough data", fontsize=12, weight="bold")
+        axes_delay[1].set_title("Correlation matrix unavailable: not enough data", fontsize=12, weight="bold")
+        for ax in axes_delay:
+            ax.grid(True, alpha=0.4)
+        fig_delay.tight_layout()
+        return fig_delay
+
+    valid_delays = []
+    for delay in delays_in_samples:
+        delay_int = int(delay)
+        if delay_int > 0 and delay_int < len(series):
+            valid_delays.append(delay_int)
+
+    if not valid_delays:
+        fig_delay, axes_delay = plt.subplots(ncols=2, figsize=(FIGSIZE_WIDTH * 1.4, FIGSIZE_HEIGHT))
+        axes_delay[0].set_title("Autocorrelation unavailable: delays too large", fontsize=12, weight="bold")
+        axes_delay[1].set_title("Correlation matrix unavailable: delays too large", fontsize=12, weight="bold")
+        for ax in axes_delay:
+            ax.grid(True, alpha=0.4)
+        fig_delay.tight_layout()
+        return fig_delay
+
+    lagged_df = pd.DataFrame(index=series.index)
+    lagged_df["t"] = series
+
+    max_lag = min(len(series) - 1, 4 * 24 * 30)
+    autocorrelation_curve = [series.autocorr(lag=lag) for lag in range(max_lag + 1)]
+
+    for delay in valid_delays:
+        lagged_label = f"t-{delay}"
+        lagged_df[lagged_label] = series.shift(delay)
+
+    correlation_matrix = lagged_df.corr()
+
+    fig_delay, axes_delay = plt.subplots(
+        ncols=2,
+        figsize=(FIGSIZE_WIDTH * 1.5, FIGSIZE_HEIGHT),
+        gridspec_kw={'width_ratios': [1.0, 1.15]}
+    )
+
+    lag_axis = np.arange(max_lag + 1)
+    axes_delay[0].plot(lag_axis, autocorrelation_curve, color=A_BLUE_COLOR, linewidth=1.8)
+    axes_delay[0].axhline(0, color=A_RAISINBLACK_COLOR, linewidth=1)
+    axes_delay[0].set_ylim(-1.0, 1.0)
+    axes_delay[0].set_ylabel("Autocorrelation [-]", fontsize=11)
+    axes_delay[0].set_xlabel("Lag [samples]", fontsize=11)
+    axes_delay[0].set_title("Autocorrelation curve", fontsize=12, weight="bold")
+    axes_delay[0].grid(True, alpha=0.35)
+
+    for delay in valid_delays:
+        axes_delay[0].axvline(delay, color=A_YELLOW_COLOR, linestyle='--', linewidth=1.2, alpha=0.6)
+
+    heatmap = axes_delay[1].imshow(correlation_matrix.values, cmap='coolwarm', vmin=-1, vmax=1)
+    axes_delay[1].set_xticks(np.arange(len(correlation_matrix.columns)))
+    axes_delay[1].set_yticks(np.arange(len(correlation_matrix.index)))
+    axes_delay[1].set_xticklabels(correlation_matrix.columns, rotation=35, ha='right')
+    axes_delay[1].set_yticklabels(correlation_matrix.index)
+    axes_delay[1].set_title("Correlation matrix of delayed series", fontsize=12, weight="bold")
+
+    for row_idx in range(correlation_matrix.shape[0]):
+        for col_idx in range(correlation_matrix.shape[1]):
+            value = correlation_matrix.iloc[row_idx, col_idx]
+            axes_delay[1].text(
+                col_idx,
+                row_idx,
+                f"{value:.2f}",
+                ha='center',
+                va='center',
+                color='white' if abs(value) > 0.5 else A_RAISINBLACK_COLOR,
+                fontsize=9
+            )
+
+    cbar = fig_delay.colorbar(heatmap, ax=axes_delay[1], fraction=0.046, pad=0.04)
+    cbar.set_label("Correlation [-]", rotation=270, labelpad=15)
+
+    fig_delay.suptitle(f"Delay correlation analysis: {column_name}", fontsize=13, fontweight='bold')
+    fig_delay.tight_layout()
+
+    if I_WANT_WATERMARK_ON_FIGURE:
+        im = Image.open(WATERMARK_PICTURE)
+        fig_delay.figimage(im, 10, 10, zorder=3, alpha=.2)
+
+    if I_WANT_TO_SAVE_PNG:
+        fig_delay.savefig("FigureExport/delay_autocorrelation_matrix_figure.png")
+
+    return fig_delay
+
+
+def build_consumption_jointplot_heatmap_figure(hours_mean_df, column_name=None):
+    """Build a day/hour consumption heatmap with marginal profiles.
+
+    X axis is day of year, Y axis is hour of day. The central plot shows the
+    mean consumption in each day/hour cell. The top profile shows daily
+    energy, and the left profile shows mean consumption per hour.
+    """
+
+    if not isinstance(hours_mean_df.index, pd.DatetimeIndex):
+        working_df = hours_mean_df.copy()
+        working_df.index = pd.to_datetime(working_df.index, errors="coerce")
+        working_df = working_df[working_df.index.notna()]
+    else:
+        working_df = hours_mean_df.copy()
+
+    if working_df.empty:
+        raise ValueError("No data available to build the consumption jointplot heatmap.")
+
+    all_channels_labels = list(working_df.columns)
+    if column_name is None:
+        matching_cols = [
+            col for col in all_channels_labels
+            if "Consumption [kW]" in col or "consommation" in col.lower()
+        ]
+        if not matching_cols:
+            raise ValueError("No consumption column found in the dataframe.")
+        column_name = matching_cols[0]
+
+    consumption_series = pd.to_numeric(working_df[column_name], errors="coerce").dropna()
+    if consumption_series.empty:
+        raise ValueError(f"No valid numeric data found in column '{column_name}'.")
+
+    plot_df = pd.DataFrame({
+        "day_of_year": consumption_series.index.dayofyear,
+        "hour_of_day": consumption_series.index.hour,
+        "consumption": consumption_series.values,
+    })
+
+    plot_df = (
+        plot_df
+        .groupby(["day_of_year", "hour_of_day"], as_index=False)["consumption"]
+        .mean()
+    )
+
+    day_min = int(plot_df["day_of_year"].min())
+    day_max = int(plot_df["day_of_year"].max())
+    day_index = np.arange(day_min, day_max + 1)
+    hour_index = np.arange(0, 24)
+
+    heatmap_data = (
+        plot_df
+        .pivot(index="hour_of_day", columns="day_of_year", values="consumption")
+        .reindex(index=hour_index, columns=day_index)
+    )
+
+    daily_energy = heatmap_data.sum(axis=0)
+    hourly_mean = heatmap_data.mean(axis=1)
+    day_edges = np.arange(day_min - 0.5, day_max + 1.5, 1)
+    hour_edges = np.arange(-0.5, 24.5, 1)
+
+    fig_consumption_jointplot = plt.figure(
+        figsize=(FIGSIZE_WIDTH, FIGSIZE_HEIGHT * 1.35),
+        facecolor=FIGURE_FACECOLOR,
+    )
+    grid_spec = fig_consumption_jointplot.add_gridspec(
+        nrows=2,
+        ncols=3,
+        width_ratios=[1.1, 5.5, 0.22],
+        height_ratios=[1.2, 4.8],
+        hspace=0.05,
+        wspace=0.06,
+    )
+
+    ax_empty = fig_consumption_jointplot.add_subplot(grid_spec[0, 0])
+    ax_top = fig_consumption_jointplot.add_subplot(grid_spec[0, 1])
+    ax_cbar_top = fig_consumption_jointplot.add_subplot(grid_spec[0, 2])
+    ax_left = fig_consumption_jointplot.add_subplot(grid_spec[1, 0])
+    ax_heatmap = fig_consumption_jointplot.add_subplot(grid_spec[1, 1], sharex=ax_top, sharey=ax_left)
+    ax_cbar = fig_consumption_jointplot.add_subplot(grid_spec[1, 2])
+    ax_empty.axis("off")
+    ax_cbar_top.axis("off")
+
+    pos = ax_heatmap.pcolormesh(
+        day_edges,
+        hour_edges,
+        heatmap_data.values,
+        shading="auto",
+        cmap="magma",
+    )
+
+    ax_top.plot(day_index, daily_energy.values, color=A_RED_COLOR, linewidth=1.6)
+    ax_top.fill_between(day_index, daily_energy.values, color=A_RED_COLOR, alpha=0.18)
+    ax_top.set_ylabel("Daily energy\n[kWh]", fontsize=10)
+    ax_top.grid(True, alpha=0.3)
+    ax_top.tick_params(axis="x", labelbottom=False)
+    for spine in ax_top.spines.values():
+        spine.set_color(WHITE_COLOR)
+
+    ax_left.plot(hourly_mean.values, hour_index, color=A_BLUE_COLOR, linewidth=1.8)
+    ax_left.fill_betweenx(hour_index, 0, hourly_mean.values, color=A_BLUE_COLOR, alpha=0.18)
+    ax_left.set_xlabel("Mean kW", fontsize=10)
+    ax_left.set_ylabel("Hour", fontsize=10)
+    ax_left.set_ylim(-0.5, 23.5)
+    ax_left.set_yticks([0, 4, 8, 12, 16, 20])
+    ax_left.invert_xaxis()
+    ax_left.grid(True, alpha=0.3)
+    for spine in ax_left.spines.values():
+        spine.set_color(WHITE_COLOR)
+
+    ax_heatmap.set_xlabel("Day of the Year", fontsize=12)
+    ax_heatmap.set_ylabel("")
+    ax_heatmap.set_ylim(-0.5, 23.5)
+    ax_heatmap.set_xlim(day_min - 0.5, day_max + 0.5)
+    ax_heatmap.set_yticks([0, 4, 8, 12, 16, 20])
+    ax_heatmap.tick_params(axis="y", labelleft=False, left=False)
+    ax_heatmap.grid(False)
+
+    cbar = fig_consumption_jointplot.colorbar(pos, cax=ax_cbar)
+    cbar.set_label("Consumption [kW]", rotation=270, labelpad=15)
+
+    fig_consumption_jointplot.suptitle(
+        "Consumption heatmap with daily energy and hourly mean profiles",
+        fontweight="bold",
+        fontsize=12,
+        y=0.98,
+    )
+
+    if I_WANT_WATERMARK_ON_FIGURE:
+        im = Image.open(WATERMARK_PICTURE)
+        fig_consumption_jointplot.figimage(im, 10, 10, zorder=3, alpha=.2)
+
+    if I_WANT_TO_SAVE_PNG:
+        fig_consumption_jointplot.savefig("FigureExport/consumption_jointplot_heatmap.png")
+
+    return fig_consumption_jointplot
