@@ -12,6 +12,7 @@
 
 #from tkinter import Image
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib.patches import Wedge, Circle
 
 import numpy as np
@@ -743,6 +744,8 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
     axes_solar[0].set_title(title_start+" per day and per month", fontsize=12, weight="bold")
     axes_solar[0].legend(["Day " + title_start])
     axes_solar[0].grid(True)
+    axes_solar[0].xaxis.set_major_locator(mdates.MonthLocator())
+    axes_solar[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axes_solar[0].xaxis.get_major_locator()))
     
     
     axes_solar[1].set_ylabel(y_axis_label_month, fontsize=12)
@@ -750,18 +753,19 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
     axes_solar[1].legend(["Month " + title_start])
     axes_solar[1].grid(True)
     
-    #replace labels with the month name:
-    loc, label= plt.xticks()
-    #plt.xticks(loc,labels=list(month_kwh_df.index.month_name()), rotation=35, ha = 'right' )
+    # Replace labels with the month name on the monthly subplot explicitly.
     labels_month=list(month_kwh_df.index.month_name())
     labels_year=list(month_kwh_df.index.year)
     
     for k,elem in enumerate(labels_month):
         if elem=='January':
             labels_month[k]=str(labels_year[k]) + ' January'
-    
     loc=np.arange(len(labels_month))
-    plt.xticks(loc,labels=labels_month,rotation=35)
+    axes_solar[1].set_xticks(loc)
+    axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
+    axes_solar[1].tick_params(axis='x', labelsize=10)
+
+    fig_solar.tight_layout()
 
     if I_WANT_WATERMARK_ON_FIGURE:
         im = Image.open(WATERMARK_PICTURE)   
