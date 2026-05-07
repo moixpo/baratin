@@ -176,14 +176,11 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
         st.warning(
             f"Le fichier contient {missing_count} valeur(s) manquante(s) "
             f"({missing_ratio:.1%} des donnees). Elles seront completees "
-            "avec la valeur valide la plus proche."
+            "avec une valeur valide voisine."
         )
 
-    # Remplit les valeurs manquantes avec la valeur valide la plus proche dans le temps
-    df["consommation"] = df["consommation"].interpolate(
-        method="nearest",
-        limit_direction="both",
-    )
+    # Remplit les valeurs manquantes sans dépendance SciPy.
+    df["consommation"] = df["consommation"].ffill().bfill()
 
     # Si jamais il reste des NaN impossibles à remplir
     df = df.dropna(subset=["consommation"])
