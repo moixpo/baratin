@@ -64,12 +64,42 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
         power_conversion_factor = 1.0 / dt_hours / 1000  # convert Wh to kW (with delta T intervals in hours)
     else:  # 'kWh'
         power_conversion_factor = 1.0 / dt_hours # convert kWh to kW (with delta T intervals in hours)
+
+    def detect_datetime_column(df_raw):
+        datetime_formats = [
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y/%m/%d %H:%M:%S",
+            "%Y/%m/%d %H:%M",
+            "%d.%m.%Y %H:%M:%S",
+            "%d.%m.%Y %H:%M",
+            "%d/%m/%Y %H:%M:%S",
+            "%d/%m/%Y %H:%M",
+            "%Y-%m-%d",
+            "%d.%m.%Y",
+            "%d/%m/%Y",
+        ]
+
+        for col in df_raw.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_raw[col]):
+                return col
+
+            for datetime_format in datetime_formats:
+                dt = pd.to_datetime(df_raw[col], format=datetime_format, errors="coerce")
+                if dt.notna().mean() > 0.9:
+                    df_raw[col] = dt
+                    return col
+
+        return None
   
 
 
     try:
+        #import simple du csv, on fera des cas spécifiques après si besoin:
+        uploaded_file.seek(0)
         df_raw = pd.read_csv(uploaded_file)
-        #TODO: ici faire des cas spécifiques pour les formats des GRDs
+
+
 
     except Exception as e:
         raise ValueError(f"Impossible de lire le CSV : {e}")
@@ -78,18 +108,23 @@ def parser_smartmeter_csv(uploaded_file: io.BytesIO, power_unit ='kW', dt_hours=
         raise ValueError("Le fichier CSV est vide.")
 
     # Détection d'une colonne datetime
-    datetime_col = None
-    for col in df_raw.columns:
-        try:
-            dt = pd.to_datetime(df_raw[col], errors="raise")
-            # Si ça ne plante pas et qu'il n'y a pas trop de NaT, on prend
-            if dt.notna().mean() > 0.9:
-                datetime_col = col
-                df_raw[col] = dt
-                break
-        except Exception:
-            continue
+    datetime_col = detect_datetime_column(df_raw)
+    if datetime_col is None:
 
+        #cela peut être un fichier OIKEN
+        #pour le cas de OIKEN il faut ignorer les deux premières lignes du fichier csv qui contiennent des métadonnées et ne pas les prendre comme des données à parser:
+        uploaded_file.seek(0)
+        df_raw = pd.read_csv(uploaded_file, skiprows=2)
+        #et recommence la détection d'une colonne datetime:
+        
+        datetime_col = detect_datetime_column(df_raw)
+
+    if datetime_col is None:
+        #avec séparateur ; et en ignorant les deux premières lignes
+        uploaded_file.seek(0)
+        df_raw = pd.read_csv(uploaded_file, skiprows=2, delimiter=';')
+        #et recommence la détection d'une colonne datetime:
+        datetime_col = detect_datetime_column(df_raw)
     if datetime_col is None:
         raise ValueError(
             "Impossible de détecter une colonne de date/heure dans le CSV.\n"
@@ -2300,21 +2335,43 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     with st.expander("Aperçu des heatmaps prod et conso"):
 
         st.write("Les données vues sous forme de heatmap, ici chaque heure de consommation/production de l'année est affichée, organisée par jour de l'année et heure du jour.")
-
-        fig_production_heatmap = build_production_heatmap_figure(hours_mean_df)
-        st.pyplot(fig_production_heatmap)
-
-        fig_consumption_heatmap = build_consumption_heatmap_figure(hours_mean_df)
-        st.pyplot(fig_consumption_heatmap)
-
         fig_consumption_jointplot = build_consumption_jointplot_heatmap_figure(hours_mean_df)
         st.pyplot(fig_consumption_jointplot)
 
-        fig_sunblocked_heatmap = build_sunblocked_heatmap_figure(hours_mean_df)
+
+
+        fig_production_heatmap = build_heatmap_figure(hours_mean_df,
+                                                                    label_of_channel = 'Solar power scaled', 
+                                                                    suptitle_text = 'Solar production for each hour [kW] -[kWh]',
+                                                                    cbar_label = "[kW] -[kWh]",
+                                                                    cmap_choice="hot")
+        st.pyplot(fig_production_heatmap)
+
+        fig_consumption_heatmap = build_heatmap_figure(hours_mean_df,
+                                                                    label_of_channel = 'Consumption [kW]', 
+                                                                    suptitle_text = 'Consumption for each hour [kW] -[kWh]',
+                                                                    cbar_label = "[kW] -[kWh]",
+                                                                    cmap_choice="magma")
+        st.pyplot(fig_consumption_heatmap)
+
+
+        fig_sunblocked_heatmap = build_heatmap_figure(hours_mean_df, 
+                                    label_of_channel = 'sun_masked_hor_0', 
+                                    suptitle_text = 'Sun masked [0-1]',
+                                    cbar_label = "0-1")
         st.pyplot(fig_sunblocked_heatmap)
+
         st.write(f"SCORE PROFIL SOLAIRE: {int(global_solar_friendliness_score)} %")
 
+        st.write("Et finalement, une heatmap au sens propre: celle de la température.")
 
+
+        fig_heat_heatmap = build_heatmap_figure(hours_mean_df, 
+                                                           label_of_channel= "temp_c", 
+                                                           suptitle_text= "Temperature [°C]",
+                                                           cbar_label= "°C",
+                                                           cmap_choice="seismic")
+        st.pyplot(fig_heat_heatmap)
         
 
     with st.expander("Aperçu du fonctionnement de la batterie"):
