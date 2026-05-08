@@ -765,8 +765,14 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
         if elem=='January':
             labels_month[k]=str(labels_year[k]) + ' January'
     loc=np.arange(len(labels_month))
-    axes_solar[1].set_xticks(loc)
-    axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
+    # axes_solar[1].set_xticks(loc)
+    # axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
+    
+    #axes_solar[1].set_xticks(month_kwh_df.index)
+    #axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
+    axes_solar[1].xaxis.set_major_locator(mdates.MonthLocator())
+    axes_solar[1].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
+
     axes_solar[1].tick_params(axis='x', labelsize=10)
 
     fig_solar.tight_layout()
