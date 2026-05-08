@@ -1966,6 +1966,69 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     
 
 
+    st.write("📋 **Résultat avec solaire seulement ☀️, sans stockage**")
+    #col1, col2 = st.columns(2)
+    st.metric("Production", str(int(scaled_production_kWh))+" kWh")
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Achat au réseau", str(int(reference_grid_consumption_kWh)) + " kWh" , f"{(reference_grid_consumption_kWh-consumption_kWh)/consumption_kWh*100 :.1f}" + "%", delta_color="off")
+    col2.metric("Revente suplus solaire", str(int(reference_grid_injection_kWh)) + " kWh")
+    col3.metric("Autonomie", f"{reference_autarky_ratio :.1f}" + "%")
+    col4.metric("Auto-consommation", f"{reference_self_consumption_ratio :.1f}" + "%")
+    col5.metric("Facture", f"{bill_with_solar_only :.0f}" + "CHF", f" { bill_with_solar_only-bill_without_nothing :.0f}"+"CHF", delta_color="off" )
+
+    st.write("📋 **Résultat avec solaire  ☀️ et stockage 🔋** ")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Achat au réseau", str(int(grid_consumption_kWh_with_storage))+" kWh", f"{(grid_consumption_kWh_with_storage-reference_grid_consumption_kWh)/reference_grid_consumption_kWh*100 :.1f}" + "%", delta_color="off")
+    col2.metric("Revente suplus solaire", str(int(grid_injection_kWh_with_storage))+" kWh", f"{(grid_injection_kWh_with_storage-reference_grid_injection_kWh)/reference_grid_injection_kWh*100 :.1f}" + "%", delta_color="off")
+    col3.metric("Autonomie", f"{(autarky_ratio_with_storage) :.1f}" + "%", f"{(autarky_ratio_with_storage-reference_autarky_ratio) :.1f}"+"%")
+    col4.metric("Auto-consommation", f"{self_consumption_ratio_with_storage :.1f}"+"%", f"{(self_consumption_ratio_with_storage-reference_self_consumption_ratio) :.1f}" + "%" )
+    #col3.metric("Self-consumption", f"{(self_consumption_ratio_with_storage) :.1f, }"+"%", f"{(self_consumption_ratio_with_storage-reference_self_consumption_ratio) :.1f}"+"%")
+    col5.metric("Facture", f" {bill_with_storage :.0f}"+"CHF", f" { bill_with_storage-bill_with_solar_only :.0f}"+"CHF", delta_color="off" )
+
+
+
+    st.write( "\n \n")
+
+
+    st.write(" **Les résultats en texte**")
+
+
+
+    st.markdown(f""" ***🏠 Référence***
+    - La consommation d'électricité pour cette période est {consumption_kWh:.2f} kWh 🔌
+    - Le coût de l'électricité du réseau sans panneaux solaires est {cost_buying_no_solar_chf:.2f} CHF, prix moyen est {cost_buying_no_solar_chf/consumption_kWh:.3f} CHF/kWh
+    """)
+
+    st.markdown(f""" ***🏠 ☀️ Avec solaire***
+    - La consommation d'électricité sur le réseau pour cette période est {reference_grid_consumption_kWh:.2f} kWh avec des panneaux solaires
+    - Le coût de l'électricité du réseau est {cost_buying_solar_only_chf:.2f} CHF avec des panneaux solaires, prix moyen est {cost_buying_solar_only_chf/reference_grid_consumption_kWh:.3f} CHF/kWh
+    - L'énergie perdue due à la limitation de revente sur le réseau est {reference_curtailment_lost_energy_kwh :.0f} kWh et le niveau de limitation est {pv_injection_curtailment_power:.2f} kW
+    - La revente de l'électricité PV est {sellings_solar_only_chf:.2f} CHF avec des panneaux solaires, prix moyen est {sellings_solar_only_chf/reference_grid_injection_kWh:.3f} CHF/kWh
+    - La facture totale est {bill_with_solar_only:.2f} CHF avec des panneaux solaires, un gain de {cost_buying_no_solar_chf-bill_with_solar_only:.1f} CHF grâce aux panneaux solaires
+    - Le prix investi dans les panneaux solaires de {PV_total_cost_usr_input:.2f} CHF est retrouvé en {PV_total_cost_usr_input/(cost_buying_no_solar_chf-bill_with_solar_only):.1f} années (calcul simple sans actualisation, si une année complète de données est utilisée).
+    """)
+
+    st.markdown(f""" ***🏠 🔋☀️ Avec stockage***
+    - La consommation d'électricité sur le réseau pour cette période est {grid_consumption_kWh_with_storage:.2f} kWh avec stockage
+    - L'énergie perdue due à la limitation de revente sur le réseau est {curtailment_lost_energy_kWh :.0f} kWh
+    - Le coût de l'électricité du réseau est {cost_buying_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {cost_buying_solar_storage_chf/grid_consumption_kWh_with_storage:.3f} CHF/kWh
+    - La revente de l'électricité PV est {sellings_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {sellings_solar_storage_chf/grid_injection_kWh_with_storage:.3f} CHF/kWh
+    - La facture totale est {bill_with_storage:.2f} CHF avec stockage, un gain de {bill_with_solar_only - bill_with_storage :.1f} CHF grâce au stockage, un retour en {(batt_total_cost_usr_input) / (bill_with_solar_only - bill_with_storage) :.1f} années
+    - Le prix investi dans le solaire et les batteries de {(PV_total_cost_usr_input + batt_total_cost_usr_input) :.2f} CHF est retrouvé en {(PV_total_cost_usr_input + batt_total_cost_usr_input) / (cost_buying_no_solar_chf - bill_with_storage) :.1f} années 
+    - **Gain TOTAL** avec solaire + stockage est {cost_buying_no_solar_chf - bill_with_storage :.2f} CHF """)
+
+
+    st.markdown(""" Notes: 
+    - La facture est calculée avec les kWh seulement, sans les abonnements. Ce total peut différer de la facture réelle mais les abonnements sont les mêmes dans la plupart des cas. 
+    - Calcul des temps de retour simple sans actualisation, si une année complète de données est utilisée.""")
+
+    st.write( "\n")
+
+    st.markdown("---")
+    st.write('\n \n')
+    st.markdown("### 6 - Analyse détaillée du profil de consommation et de son adéquation avec le solaire")
+
     #st.write("Indicateurs sur le profil de consommation")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -2021,32 +2084,6 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
                 
 
 
-    st.write("📋 **Résultat avec solaire seulement ☀️, sans stockage**")
-    #col1, col2 = st.columns(2)
-    st.metric("Production", str(int(scaled_production_kWh))+" kWh")
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Achat au réseau", str(int(reference_grid_consumption_kWh)) + " kWh" , f"{(reference_grid_consumption_kWh-consumption_kWh)/consumption_kWh*100 :.1f}" + "%", delta_color="off")
-    col2.metric("Revente suplus solaire", str(int(reference_grid_injection_kWh)) + " kWh")
-    col3.metric("Autonomie", f"{reference_autarky_ratio :.1f}" + "%")
-    col4.metric("Auto-consommation", f"{reference_self_consumption_ratio :.1f}" + "%")
-    col5.metric("Facture", f"{bill_with_solar_only :.0f}" + "CHF", f" { bill_with_solar_only-bill_without_nothing :.0f}"+"CHF", delta_color="off" )
-
-    st.write("📋 **Résultat avec solaire  ☀️ et stockage 🔋** ")
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Achat au réseau", str(int(grid_consumption_kWh_with_storage))+" kWh", f"{(grid_consumption_kWh_with_storage-reference_grid_consumption_kWh)/reference_grid_consumption_kWh*100 :.1f}" + "%", delta_color="off")
-    col2.metric("Revente suplus solaire", str(int(grid_injection_kWh_with_storage))+" kWh", f"{(grid_injection_kWh_with_storage-reference_grid_injection_kWh)/reference_grid_injection_kWh*100 :.1f}" + "%", delta_color="off")
-    col3.metric("Autonomie", f"{(autarky_ratio_with_storage) :.1f}" + "%", f"{(autarky_ratio_with_storage-reference_autarky_ratio) :.1f}"+"%")
-    col4.metric("Auto-consommation", f"{self_consumption_ratio_with_storage :.1f}"+"%", f"{(self_consumption_ratio_with_storage-reference_self_consumption_ratio) :.1f}" + "%" )
-    #col3.metric("Self-consumption", f"{(self_consumption_ratio_with_storage) :.1f, }"+"%", f"{(self_consumption_ratio_with_storage-reference_self_consumption_ratio) :.1f}"+"%")
-    col5.metric("Facture", f" {bill_with_storage :.0f}"+"CHF", f" { bill_with_storage-bill_with_solar_only :.0f}"+"CHF", delta_color="off" )
-
-
-
-    #st.markdown("---")
-
-
-
                 
 
 
@@ -2062,41 +2099,6 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
 
     st.write( "\n \n")
 
-
-
-    st.write(" **Les résultats en texte**")
-
-
-
-    st.markdown(f""" ***🏠 Référence***
-    - La consommation d'électricité pour cette période est {consumption_kWh:.2f} kWh 🔌
-    - Le coût de l'électricité du réseau sans panneaux solaires est {cost_buying_no_solar_chf:.2f} CHF, prix moyen est {cost_buying_no_solar_chf/consumption_kWh:.3f} CHF/kWh
-    """)
-
-    st.markdown(f""" ***🏠 ☀️ Avec solaire***
-    - La consommation d'électricité sur le réseau pour cette période est {reference_grid_consumption_kWh:.2f} kWh avec des panneaux solaires
-    - Le coût de l'électricité du réseau est {cost_buying_solar_only_chf:.2f} CHF avec des panneaux solaires, prix moyen est {cost_buying_solar_only_chf/reference_grid_consumption_kWh:.3f} CHF/kWh
-    - L'énergie perdue due à la limitation de revente sur le réseau est {reference_curtailment_lost_energy_kwh :.0f} kWh et le niveau de limitation est {pv_injection_curtailment_power:.2f} kW
-    - La revente de l'électricité PV est {sellings_solar_only_chf:.2f} CHF avec des panneaux solaires, prix moyen est {sellings_solar_only_chf/reference_grid_injection_kWh:.3f} CHF/kWh
-    - La facture totale est {bill_with_solar_only:.2f} CHF avec des panneaux solaires, un gain de {cost_buying_no_solar_chf-bill_with_solar_only:.1f} CHF grâce aux panneaux solaires
-    - Le prix investi dans les panneaux solaires de {PV_total_cost_usr_input:.2f} CHF est retrouvé en {PV_total_cost_usr_input/(cost_buying_no_solar_chf-bill_with_solar_only):.1f} années (calcul simple sans actualisation, si une année complète de données est utilisée).
-    """)
-
-    st.markdown(f""" ***🏠 🔋☀️ Avec stockage***
-    - La consommation d'électricité sur le réseau pour cette période est {grid_consumption_kWh_with_storage:.2f} kWh avec stockage
-    - L'énergie perdue due à la limitation de revente sur le réseau est {curtailment_lost_energy_kWh :.0f} kWh
-    - Le coût de l'électricité du réseau est {cost_buying_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {cost_buying_solar_storage_chf/grid_consumption_kWh_with_storage:.3f} CHF/kWh
-    - La revente de l'électricité PV est {sellings_solar_storage_chf:.2f} CHF avec stockage, prix moyen est {sellings_solar_storage_chf/grid_injection_kWh_with_storage:.3f} CHF/kWh
-    - La facture totale est {bill_with_storage:.2f} CHF avec stockage, un gain de {bill_with_solar_only - bill_with_storage :.1f} CHF grâce au stockage, un retour en {(batt_total_cost_usr_input) / (bill_with_solar_only - bill_with_storage) :.1f} années
-    - Le prix investi dans le solaire et les batteries de {(PV_total_cost_usr_input + batt_total_cost_usr_input) :.2f} CHF est retrouvé en {(PV_total_cost_usr_input + batt_total_cost_usr_input) / (cost_buying_no_solar_chf - bill_with_storage) :.1f} années 
-    - **Gain TOTAL** avec solaire + stockage est {cost_buying_no_solar_chf - bill_with_storage :.2f} CHF """)
-
-
-    st.markdown(""" Notes: 
-    - La facture est calculée avec les kWh seulement, sans les abonnements. Ce total peut différer de la facture réelle mais les abonnements sont les mêmes dans la plupart des cas. 
-    - Calcul des temps de retour simple sans actualisation, si une année complète de données est utilisée.""")
-
-    st.write( "\n")
     st.write( "\n")
 
 
@@ -2150,17 +2152,16 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     
 
     with st.expander("Aperçus globaux de la prod et conso journalière et mensuels"):
-        fig_sol_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df)
+        fig_sol_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="Solar power scaled", title_start="Production solaire", y_axis_label_day="Energie [kWh/day]", y_axis_label_month="Energie [kWh/month]")
         st.pyplot(fig_sol_daymonth, width='stretch')
 
-        fig_conso_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="Consumption [kW]", title_start="Consumption", color_day = "#9A031E")
+        fig_conso_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="Consumption [kW]", title_start="Consommation", y_axis_label_day="Energie [kWh/day]", y_axis_label_month="Energie [kWh/month]",color_day = "#9A031E")
         st.pyplot(fig_conso_daymonth, width='stretch')
         
         fig_score_daymonth = build_day_and_month_energy_figure(day_kwh_df, month_kwh_df, column_name="solar_friendliness_score", title_start="Solar Friendliness Score", y_axis_label_day="Score [%]", y_axis_label_month="Score [%]", color_day = "#F39511")
         st.pyplot(fig_score_daymonth, width='stretch')
         
-
-
+        st.write("""La DUP fait du sens pour une année de donnée""")
         fig_dup = build_dup_figure(df_pow_profile)
         st.pyplot(fig_dup)
 
@@ -2185,15 +2186,14 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         fig_consumption_week_analysis = build_consumption_week_analysis(df_pow_profile)
         st.pyplot(fig_consumption_week_analysis, width='stretch')
         
-        figure_day_night_share = build_day_night_energy_share_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
-        st.pyplot(figure_day_night_share)
-
         figure_day_night_share_by_week = build_day_night_energy_share_by_week_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
         st.pyplot(figure_day_night_share_by_week)
 
-        fig_consumption_week_analysis_by_season = build_consumption_week_analysis_by_season(df_pow_profile)
-        st.pyplot(fig_consumption_week_analysis_by_season)
+        figure_day_night_share = build_day_night_energy_share_figure(df_pow_profile, start_day_hour = 7, stop_day_hour = 19)
+        st.pyplot(figure_day_night_share)
 
+
+        st.write("\nEst-ce que la consommation se répète régulièrement d'un jour et d'une semaine à l'autre ?")
         fig_delay = build_delay_autocorrelation_and_matrix_figure(df_pow_profile, column_name="Consumption [kW]")
         st.pyplot(fig_delay)
         
@@ -2205,9 +2205,13 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
 
         fig_polar_seasonnal_profile_tiles = build_polar_consumption_and_solar_profile_by_season_tiles(df_pow_profile)
         st.pyplot(fig_polar_seasonnal_profile_tiles)
-
-        fig_polar_seasonnal_profile = build_polar_consumption_profile_by_season(df_pow_profile)
-        st.pyplot(fig_polar_seasonnal_profile)
+        col1, col2 = st.columns(2)
+        with col1:
+            fig_polar_seasonnal_profile = build_polar_consumption_profile_by_season(df_pow_profile)
+            st.pyplot(fig_polar_seasonnal_profile)
+        with col2:
+            fig_consumption_week_analysis_by_season = build_consumption_week_analysis_by_season(df_pow_profile)
+            st.pyplot(fig_consumption_week_analysis_by_season)
 
 
 
@@ -2231,11 +2235,9 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         elec_car_consumption_per_year = km_par_an_usr_input / 100 * car_kwh_per_100km
         elec_car_consumption_per_day = elec_car_consumption_per_year / 365
         daily_base_without_car = daily_base - elec_car_consumption_per_day
-        st.write(f"La consommation de la voiture électrique estimée à partir des données d'entrée est {elec_car_consumption_per_year:.2f} kWh/an, soit : {elec_car_consumption_per_day:.2f} kWh/jour ({elec_car_consumption_per_day/car_kwh_per_100km*100 :.1f} km).")
-        st.write(f"La consommation électrique quotidienne est donc de {daily_base_without_car:.2f} kWh/jour et pour {nbre_habitant_usr_input} personnes et donc {daily_base_without_car/nbre_habitant_usr_input:.2f} kWh/jour/personne.")
 
-        st.write("Ce dernier chiffre de consommation de base par personne peut être comparé à des moyennes pour voir si l'utilisation est globalement plus ou moins élevé, et ainsi estimer la sobriété et le potentiel de réduction de la consommation de confort ou en adaptant les comportements.")
-        
+        st.write(f"La consommation de la voiture électrique estimée à partir des données d'entrée est {elec_car_consumption_per_year:.2f} kWh/an, soit : {elec_car_consumption_per_day:.2f} kWh/jour ({elec_car_consumption_per_day/car_kwh_per_100km*100 :.1f} km).")
+
         #Le score de sobriété pour la consommation de base par personne est donné par:
         # - 100% correspond à une consommation de base par personne de 2 kWh/jour/personne ou moins
         # - 0% correspond à une consommation de base par personne de 5 kWh/jour/personne ou plus
@@ -2243,20 +2245,9 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
         #il est linaire entre 2 et 5 kWh/jour/personne, et il est calculé à partir de la consommation de base par personne qui est elle même calculée à partir de la consommation totale moins la consommation de chauffage et de mobilité électrique, divisée par le nombre d'habitant.
         score_sobriety = 100.0 - (daily_base_without_car/nbre_habitant_usr_input - 2.0) / (5.0 - 2.0) * 100.0
         score_sobriety = max(0.0, min(100.0, score_sobriety))  #clamp entre 0 et 100
-
-        fig_sobriety_score = build_gauge_figure(score_sobriety, score_title="Score de sobriété \nde la consommation de base par personne")
-        st.pyplot(fig_sobriety_score)        
-
-
-
-        COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
         energy_for_heating = consumption_kWh - daily_base * 365.0
         heating_per_square_meter = energy_for_heating / surface_batiment_usr_input * COP
-
-
-        st.write(f"La part de consommation dépendante de la température est dans le total est {energy_for_heating:.0f} kWh par an, soit {energy_for_heating/consumption_kWh*100:.1f} % de la consommation totale")
-        st.write(f"Sur une surface de {surface_batiment_usr_input:.0f} m2, cela correspond à une consommation de chauffage de {heating_per_square_meter:.2f} kWh/m2/an avec un COP de {COP}, ce qui peut être comparé à d'autres bâtiments pour estimer l'efficacité énergétique et identifier les potentiels d'amélioration, par exemple avec l'isolation ou en adaptant les systèmes de chauffage.")
-
+        COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
         #Le score de consommation du bâtiment est donnée par:
         # - 100% correspond à un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an
         # - 75% correspond à un bâtiment SIA avec une consommation de chauffage de 30 kWh/m2/an
@@ -2272,12 +2263,27 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
             score_heating = 50.0 - (heating_per_square_meter - 50.0) / (100.0 - 50.0) * 50.0
         else:
             score_heating = 0.0
-            
+       
 
-        st.write(f"Le score de consommation pour le chauffage du bâtiment est de {score_heating:.1f} % (100% pour un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an, 0% pour un bâtiment énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus).")
-        
-        fig_heating_score = build_gauge_figure(score_heating, score_title="Score de consommation pour le chauffage")
-        st.pyplot(fig_heating_score)    
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"La consommation électrique quotidienne est donc de {daily_base_without_car:.2f} kWh/jour et pour {nbre_habitant_usr_input} personnes et donc {daily_base_without_car/nbre_habitant_usr_input:.2f} kWh/jour/personne.")
+            st.write("Ce dernier chiffre de consommation de base par personne peut être comparé à des moyennes pour voir si l'utilisation est globalement plus ou moins élevé, et ainsi estimer la sobriété et le potentiel de réduction de la consommation de confort ou en adaptant les comportements.")
+        with col2:
+            fig_sobriety_score = build_gauge_figure(score_sobriety, score_title="Score de sobriété \nde la consommation de base par personne")
+            st.pyplot(fig_sobriety_score)        
+
+
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"La part de consommation dépendante de la température est dans le total est {energy_for_heating:.0f} kWh par an, soit {energy_for_heating/consumption_kWh*100:.1f} % de la consommation totale")
+            st.write(f"Sur une surface de {surface_batiment_usr_input:.0f} m2, cela correspond à une consommation de chauffage de {heating_per_square_meter:.2f} kWh/m2/an avec un COP de {COP}, ce qui peut être comparé à d'autres bâtiments pour estimer l'efficacité énergétique et identifier les potentiels d'amélioration, par exemple avec l'isolation ou en adaptant les systèmes de chauffage.")
+
+            st.write(f"Le score de consommation pour le chauffage du bâtiment est de {score_heating:.1f} % (100% pour un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an, 0% pour un bâtiment énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus).")
+        with col2:    
+            fig_heating_score = build_gauge_figure(score_heating, score_title="Score de consommation pour le chauffage")
+            st.pyplot(fig_heating_score)    
 
 
         # year_used = df_pow_profile.index.year[0]

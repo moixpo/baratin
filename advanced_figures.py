@@ -739,43 +739,51 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
               marker='o',
               color=color_day)
     
-    month_kwh_df[month_kwh_df.columns[chanel_number_for_solar[0]]].plot.bar(ax=axes_solar[1],
-                          use_index=True)
+    # month_kwh_df[month_kwh_df.columns[chanel_number_for_solar[0]]].plot.bar(ax=axes_solar[1],
+    #                       use_index=True)
+    axes_solar[1].bar(
+                month_kwh_df.index,
+                month_kwh_df[month_kwh_df.columns[chanel_number_for_solar[0]]],
+                width=20,
+                align='center'
+            )
     
-    # if FRANCAIS_LANGUAGE == True:
-    # else:
+    if FRANCAIS_LANGUAGE == True:
+        axes_solar[0].set_title(title_start+" par jour et par mois", fontsize=12, weight="bold")
+        axes_solar[0].legend([ title_start + " du jour"])
+        axes_solar[1].legend([title_start + " du mois"])
+
+        locale_lang='fr_FR'
+    else:
+        axes_solar[0].set_title(title_start+" per day and per month", fontsize=12, weight="bold")
+        axes_solar[0].legend(["Daily " + title_start])
+        axes_solar[1].legend(["Month " + title_start])
+
+        locale_lang='en_GB'
+
     axes_solar[0].set_ylabel(y_axis_label_day, fontsize=12)
-    axes_solar[0].set_title(title_start+" per day and per month", fontsize=12, weight="bold")
-    axes_solar[0].legend(["Day " + title_start])
     axes_solar[0].grid(True)
     axes_solar[0].xaxis.set_major_locator(mdates.MonthLocator())
     axes_solar[0].xaxis.set_major_formatter(mdates.ConciseDateFormatter(axes_solar[0].xaxis.get_major_locator()))
     
     
+
     axes_solar[1].set_ylabel(y_axis_label_month, fontsize=12)
     #axes_solar[1].set_title("PV production per month", fontsize=12, weight="bold")
-    axes_solar[1].legend(["Month " + title_start])
     axes_solar[1].grid(True)
     
     # Replace labels with the month name on the monthly subplot explicitly.
-    labels_month=list(month_kwh_df.index.month_name())
+    labels_month=list(month_kwh_df.index.month_name(locale=locale_lang))
     labels_year=list(month_kwh_df.index.year)
     
     for k,elem in enumerate(labels_month):
-        if elem=='January':
-            labels_month[k]=str(labels_year[k]) + ' January'
-    loc=np.arange(len(labels_month))
-    # axes_solar[1].set_xticks(loc)
-    # axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
+        if elem=='January' or elem=='Janvier':
+            labels_month[k]=str(labels_year[k]) + ' ' + elem
+
+    #force a tick for each month to be able to put the month name as label:
+    axes_solar[1].set_xticks(month_kwh_df.index)
+    axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
     
-    #axes_solar[1].set_xticks(month_kwh_df.index)
-    #axes_solar[1].set_xticklabels(labels_month, rotation=35, ha='right')
-    axes_solar[1].xaxis.set_major_locator(mdates.MonthLocator())
-    axes_solar[1].xaxis.set_major_formatter(mdates.DateFormatter('%b'))
-
-    axes_solar[1].tick_params(axis='x', labelsize=10)
-
-    fig_solar.tight_layout()
 
     if I_WANT_WATERMARK_ON_FIGURE:
         im = Image.open(WATERMARK_PICTURE)   
@@ -1501,7 +1509,7 @@ def build_day_night_energy_share_figure(total_datalog_df, start_day_hour = 7, st
     print(f"Total day consumption: {total_day_consumption:.2f} kWh")
     print(f"Total night consumption: {total_night_consumption:.2f} kWh")
     #and plot it in a bar chart and in a pie chart to see the fraction of day and night consumption in the total consumption:
-    fig_day_night_ratio, axes_day_night = plt.subplots(ncols = 2, figsize=(6, 6))
+    fig_day_night_ratio, axes_day_night = plt.subplots(ncols = 2, figsize=(8, 4))
     axes_day_night[0].bar(["Day", "Night"], [total_day_consumption, total_night_consumption], color=["orange", "blue"])
     axes_day_night[0].set_title("Total consumption during day and night")
     axes_day_night[0].set_ylabel("Total consumption (kWh)")
@@ -1541,6 +1549,8 @@ def build_day_night_energy_share_by_week_figure(total_datalog_df, start_day_hour
     col_to_convert=channel_label_Pout_actif_Tot[0]
     # separate the night consumption and day consumption for each day of the week and plot it in a stacked bar chart
     total_datalog_df["day_of_week"] = total_datalog_df.index.dayofweek  
+    total_datalog_df["hour"] = total_datalog_df.index.hour
+
     week_consumption = total_datalog_df.groupby('day_of_week')[col_to_convert].sum()
     day_by_week = total_datalog_df[total_datalog_df['hour'].between(start_day_hour, stop_day_hour)].groupby('day_of_week')[col_to_convert].sum()
     night_by_week = total_datalog_df[~total_datalog_df['hour'].between(start_day_hour, stop_day_hour)].groupby('day_of_week')[col_to_convert].sum()
