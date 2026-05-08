@@ -895,7 +895,7 @@ else:
 # Sidebar – Paramètres système PV et batterie
 # -----------------------------------------------------------
 
-st.sidebar.title("⚙️ 1- Simulation")
+st.sidebar.title("⚙️ 1- Entrez les Paramètres de Simulation")
 
 st.sidebar.markdown("---")
 st.sidebar.header("☀️ Paramètres photovoltaïques")
@@ -1911,45 +1911,45 @@ if "df_pow_profile" in locals() and not df_pow_profile.empty:
     #Analysis of the heating and the sobriety score 
 
 
-        fig_daily_hdd_correlation, daily_base = build_daily_consumption_vs_hdd_correlation_figure(df_pow_profile)
+    fig_daily_hdd_correlation, daily_base = build_daily_consumption_vs_hdd_correlation_figure(df_pow_profile)
+    
+    
+    #variante avec la soustraction de la consommation d'une voiture qui fait 10'000 km par an avec une consommation de 15 kWh/100km, soit 1500 kWh par an, soit environ 4.1 kWh par jour:
+    car_kwh_per_100km = 15.0
+    elec_car_consumption_per_year = km_par_an_usr_input / 100 * car_kwh_per_100km
+    elec_car_consumption_per_day = elec_car_consumption_per_year / 365
+    daily_base_without_car = daily_base - elec_car_consumption_per_day
         
+    #Le score de sobriété pour la consommation de base par personne est donné par:
+    # - 100% correspond à une consommation de base par personne de 2 kWh/jour/personne ou moins
+    # - 0% correspond à une consommation de base par personne de 5 kWh/jour/personne ou plus
+
+    #il est linaire entre 2 et 5 kWh/jour/personne, et il est calculé à partir de la consommation de base par personne qui est elle même calculée à partir de la consommation totale moins la consommation de chauffage et de mobilité électrique, divisée par le nombre d'habitant.
+    score_sobriety = 100.0 - (daily_base_without_car/nbre_habitant_usr_input - 2.0) / (5.0 - 2.0) * 100.0
+    score_sobriety = max(0.0, min(100.0, score_sobriety))  #clamp entre 0 et 100
+
+
+    COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
+    energy_for_heating = consumption_kWh - daily_base * 365.0
+    heating_per_square_meter = energy_for_heating / surface_batiment_usr_input * COP
+
+
+    #Le score de consommation du bâtiment est donnée par:
+    # - 100% correspond à un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an
+    # - 75% correspond à un bâtiment SIA avec une consommation de chauffage de 30 kWh/m2/an
+    # - 50% correspond à un bâtiment standard avec une consommation de chauffage de 50 kWh/m2/an
+    # - 0% correspond à un bâtiment très énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus
+    if heating_per_square_meter < 20.0:
+        score_heating = 100.0
+    elif heating_per_square_meter < 30.0:
+        score_heating = 100.0 - (heating_per_square_meter - 20.0) / (30.0 - 20.0) * 25.0
+    elif heating_per_square_meter < 50.0:       
+        score_heating = 75.0 - (heating_per_square_meter - 30.0) / (50.0 - 30.0) * 25.0
+    elif heating_per_square_meter < 100.0:
+        score_heating = 50.0 - (heating_per_square_meter - 50.0) / (100.0 - 50.0) * 50.0
+    else:
+        score_heating = 0.0
         
-        #variante avec la soustraction de la consommation d'une voiture qui fait 10'000 km par an avec une consommation de 15 kWh/100km, soit 1500 kWh par an, soit environ 4.1 kWh par jour:
-        car_kwh_per_100km = 15.0
-        elec_car_consumption_per_year = km_par_an_usr_input / 100 * car_kwh_per_100km
-        elec_car_consumption_per_day = elec_car_consumption_per_year / 365
-        daily_base_without_car = daily_base - elec_car_consumption_per_day
-         
-        #Le score de sobriété pour la consommation de base par personne est donné par:
-        # - 100% correspond à une consommation de base par personne de 2 kWh/jour/personne ou moins
-        # - 0% correspond à une consommation de base par personne de 5 kWh/jour/personne ou plus
-
-        #il est linaire entre 2 et 5 kWh/jour/personne, et il est calculé à partir de la consommation de base par personne qui est elle même calculée à partir de la consommation totale moins la consommation de chauffage et de mobilité électrique, divisée par le nombre d'habitant.
-        score_sobriety = 100.0 - (daily_base_without_car/nbre_habitant_usr_input - 2.0) / (5.0 - 2.0) * 100.0
-        score_sobriety = max(0.0, min(100.0, score_sobriety))  #clamp entre 0 et 100
-
-
-        COP = 2.0  #Coefficient de performance pour une pompe à chaleur, à ajuster en fonction du système de chauffage utilisé
-        energy_for_heating = consumption_kWh - daily_base * 365.0
-        heating_per_square_meter = energy_for_heating / surface_batiment_usr_input * COP
-
-
-        #Le score de consommation du bâtiment est donnée par:
-        # - 100% correspond à un bâtiment minergie avec une consommation de chauffage de 20 kWh/m2/an
-        # - 75% correspond à un bâtiment SIA avec une consommation de chauffage de 30 kWh/m2/an
-        # - 50% correspond à un bâtiment standard avec une consommation de chauffage de 50 kWh/m2/an
-        # - 0% correspond à un bâtiment très énergivore avec une consommation de chauffage de 100 kWh/m2/an ou plus
-        if heating_per_square_meter < 20.0:
-            score_heating = 100.0
-        elif heating_per_square_meter < 30.0:
-            score_heating = 100.0 - (heating_per_square_meter - 20.0) / (30.0 - 20.0) * 25.0
-        elif heating_per_square_meter < 50.0:       
-            score_heating = 75.0 - (heating_per_square_meter - 30.0) / (50.0 - 30.0) * 25.0
-        elif heating_per_square_meter < 100.0:
-            score_heating = 50.0 - (heating_per_square_meter - 50.0) / (100.0 - 50.0) * 50.0
-        else:
-            score_heating = 0.0
-            
 
 
 
