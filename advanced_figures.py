@@ -32,6 +32,17 @@ FIGSIZE_HEIGHT=6
 WATERMARK_PICTURE='media/LogoAlbedo_90x380.png'
 #WATERMARK_PICTURE='media/watermark_logo2.png'
 
+french_months = {
+    1: "Janvier", 2: "Février", 3: "Mars", 4: "Avril",
+    5: "Mai", 6: "Juin", 7: "Juillet", 8: "Août",
+    9: "Septembre", 10: "Octobre", 11: "Novembre", 12: "Décembre"
+}
+english_months = {
+    1: "January", 2: "February", 3: "March", 4: "April",
+    5: "May", 6: "June", 7: "July", 8: "August",
+    9: "September", 10: "October", 11: "November", 12: "December"
+}
+
 #colorset
 PINK_COLOR='#FFB2C7'
 RED_COLOR='#CC0000'
@@ -752,14 +763,14 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
         axes_solar[0].set_title(title_start+" par jour et par mois", fontsize=12, weight="bold")
         axes_solar[0].legend([ title_start + " du jour"])
         axes_solar[1].legend([title_start + " du mois"])
+        labels_month = [french_months[m] for m in month_kwh_df.index.month]
 
-        locale_lang='fr_FR'
     else:
         axes_solar[0].set_title(title_start+" per day and per month", fontsize=12, weight="bold")
         axes_solar[0].legend(["Daily " + title_start])
         axes_solar[1].legend(["Month " + title_start])
+        labels_month = [english_months[m] for m in month_kwh_df.index.month]
 
-        locale_lang='en_GB'
 
     axes_solar[0].set_ylabel(y_axis_label_day, fontsize=12)
     axes_solar[0].grid(True)
@@ -773,7 +784,7 @@ def build_day_and_month_energy_figure(day_kwh_df,month_kwh_df,
     axes_solar[1].grid(True)
     
     # Replace labels with the month name on the monthly subplot explicitly.
-    labels_month=list(month_kwh_df.index.month_name(locale=locale_lang))
+    #labels_month=list(month_kwh_df.index.month_name(locale=locale_lang))
     labels_year=list(month_kwh_df.index.year)
     
     for k,elem in enumerate(labels_month):
